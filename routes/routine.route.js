@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 
-const routineController = require('../controllers/routine.controller');
+const routineController = require('../controllers/routineController');
 
 router.post('/', routineController.createRoutine);
 router.get('/', routineController.getRoutines);
