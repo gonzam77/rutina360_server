@@ -1,6 +1,6 @@
 module.exports = (sequelize, DataTypes) => {
 
-  const Muscle_Group = sequelize.define('Muscle_Group', {
+  const MuscleGroup = sequelize.define('MuscleGroup', {
     id: {
       type: DataTypes.INTEGER,
       primaryKey: true,
@@ -12,5 +12,5 @@ module.exports = (sequelize, DataTypes) => {
     }
   });
 
-  return Muscle_Group;
+  return MuscleGroup;
 } 

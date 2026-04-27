@@ -6,15 +6,15 @@ module.exports =(sequelize, DataTypes) =>{
         primaryKey: true,
         autoIncrement: true
     },
-    id_note: {
+    idNote: {
         type: DataTypes.INTEGER,
         allowNull: false
     },
-    created_at: {
+    createdAt: {
         type: DataTypes.DATE,
         allowNull: false
     },
-    updated_at: {
+    updatedAt: {
         type: DataTypes.DATE,
         allowNull: false
     }

@@ -19,11 +19,11 @@ module.exports = (sequelize, DataTypes) => {
       type: Datatypes.STRING,
       allowNull: false
     },
-    id_role: {
+    idRole: {
       type: Datatypes.INTEGER,
       allowNull: false 
     },
-    birth_date: {
+    birthDate: {
       type: Datatypes.DATE,
       allowNull: false
     },
@@ -51,27 +51,27 @@ module.exports = (sequelize, DataTypes) => {
       type: Datatypes.STRING,
       allowNull: false
     },
-    weekly_availability: {
+    weeklyAvailability: {
       type: Datatypes.STRING,
       allowNull: false
     },
-    is_active: {
+    isActive: {
       type: Datatypes.BOOLEAN,
       allowNull: false
     },
-    is_verified: {
+    isVerified: {
       type: Datatypes.BOOLEAN,
       allowNull: false
     },
-    is_deleted: {
+    isDeleted: {
       type: Datatypes.BOOLEAN,
       allowNull: false
     },
-    created_at: {
+    createdAt: {
       type: Datatypes.DATE,
       allowNull: false
     },
-    updated_at: {
+    updatedAt: {
       type: Datatypes.DATE,
       allowNull: false
     }

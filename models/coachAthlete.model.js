@@ -1,32 +1,32 @@
 module.export = (sequelize, DataTypes) => {
 
-    const Coach_Athlete = sequelize.define('Coach_Athlete', {
+    const CoachAthlete = sequelize.define('CoachAthlete', {
     id: {
         type: DataTypes.INTEGER,
         primaryKey: true,
         autoIncrement: true
     },
-    id_coach: {
+    idCoach: {
         type: DataTypes.INTEGER,
         allowNull: false
     },
-    id_athlete: {
+    idAthlete: {
         type: DataTypes.INTEGER,
         allowNull: false
     },
-    created_at: {
+    createdAt: {
         type: DataTypes.DATE,
         allowNull: false
     },
-    is_active: {
+    isActive: {
         type: DataTypes.BOOLEAN,
         allowNull: false
     },
-    is_deleted: {
+    isDeleted: {
         type: DataTypes.BOOLEAN,
         allowNull: false
     } 
     })
 
-    return Coach_Athlete;
+    return CoachAthlete;
 }
