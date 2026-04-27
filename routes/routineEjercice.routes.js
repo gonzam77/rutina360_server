@@ -1,12 +1,12 @@
 const express = require('express');
 const router = express.Router();
 
-const ejerciceController = require('../controllers/ejerciceController');
+const RoutineEjerciceController = require('../controllers/routineEjerciceController');
 
-router.post('/', ejerciceController.createEjercice);
-router.get('/', ejerciceController.getEjercices);
-router.get('/:id', ejerciceController.getEjerciceById);
-router.put('/:id', ejerciceController.updateEjercice);
-router.delete('/:id', ejerciceController.deleteEjercice);
+router.post('/', RoutineEjerciceController.createRoutineEjercice);
+router.get('/', RoutineEjerciceController.getRoutineEjercices);
+router.get('/:id', RoutineEjerciceController.getRoutineEjerciceById);
+router.put('/:id', RoutineEjerciceController.updateRoutineEjercice);
+router.delete('/:id', RoutineEjerciceController.deleteRoutineEjercice);
 
 module.exports = router;
