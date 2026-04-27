@@ -1,3 +1,5 @@
+const { Ejercice } = require('../models');
+
 module.exports = {
     async createEjercice(req, res) {
         try {

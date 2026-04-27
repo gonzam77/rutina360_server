@@ -1,3 +1,5 @@
+const { CoachAthlete } = require('../models');
+
 module.exports = {
     async createCoachAthlete(req, res) {
         try {

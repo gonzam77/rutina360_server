@@ -1,3 +1,5 @@
+const { Comment } = require('../models');
+
 module.exports = {
     async createComment(req, res) {
         try {

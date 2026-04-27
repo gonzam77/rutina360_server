@@ -1,3 +1,5 @@
+const { MuscleGroup } = require('../models');
+
 module.exports = {
     async createMuscularGroup(req, res) {
         try {

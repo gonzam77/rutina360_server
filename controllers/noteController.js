@@ -1,3 +1,5 @@
+const { Note } = require('../models');
+
 module.exports = {
     async createNote(req, res) {
         try {

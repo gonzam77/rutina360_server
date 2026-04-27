@@ -1,3 +1,6 @@
+const { RoutineEjercice } = require('../models');
+
+
 module.exports = {
     async createRoutineEjercice(req, res) {
         try {

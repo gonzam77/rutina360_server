@@ -1,3 +1,5 @@
+const { Routine } = require('../models');
+
 module.exports = {
     async createRoutine(req, res) {
         try {
