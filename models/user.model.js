@@ -2,77 +2,77 @@ module.exports = (sequelize, DataTypes) => {
 
   const User = sequelize.define('User', {
     id: {
-      type: Datatypes.INTEGER,
+      type: DataTypes.INTEGER,
       primaryKey: true,
       autoIncrement: true
     },    
     username: {
-      type: Datatypes.STRING,
+      type: DataTypes.STRING,
       allowNull: false
     },
     email: {
-      type: Datatypes.STRING,
+      type: DataTypes.STRING,
       allowNull: false,
       unique: true
     },
     password: {
-      type: Datatypes.STRING,
+      type: DataTypes.STRING,
       allowNull: false
     },
     idRole: {
-      type: Datatypes.INTEGER,
+      type: DataTypes.INTEGER,
       allowNull: false 
     },
     birthDate: {
-      type: Datatypes.DATE,
+      type: DataTypes.DATE,
       allowNull: false
     },
     gender: {
-      type: Datatypes.STRING,
+      type: DataTypes.STRING,
       allowNull: false
     },
     phone: {
-      type: Datatypes.STRING,
+      type: DataTypes.STRING,
       allowNull: false
     },
     height: {
-      type: Datatypes.INTEGER,
+      type: DataTypes.INTEGER,
       allowNull: false
     },
     weight: {
-      type: Datatypes.INTEGER,
+      type: DataTypes.INTEGER,
       allowNull: false
     },
     address: {
-      type: Datatypes.STRING,
+      type: DataTypes.STRING,
       allowNull: false
     },
     goal: {
-      type: Datatypes.STRING,
+      type: DataTypes.STRING,
       allowNull: false
     },
     weeklyAvailability: {
-      type: Datatypes.STRING,
+      type: DataTypes.STRING,
       allowNull: false
     },
     isActive: {
-      type: Datatypes.BOOLEAN,
+      type: DataTypes.BOOLEAN,
       allowNull: false
     },
     isVerified: {
-      type: Datatypes.BOOLEAN,
+      type: DataTypes.BOOLEAN,
       allowNull: false
     },
     isDeleted: {
-      type: Datatypes.BOOLEAN,
+      type: DataTypes.BOOLEAN,
       allowNull: false
     },
     createdAt: {
-      type: Datatypes.DATE,
+      type: DataTypes.DATE,
       allowNull: false
     },
     updatedAt: {
-      type: Datatypes.DATE,
+      type: DataTypes.DATE,
       allowNull: false
     }
   });
