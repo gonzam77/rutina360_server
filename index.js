@@ -1,11 +1,12 @@
 const express = require('express');
-const db = require('../models');
+const db = require('./models/index');
 
 const app = express();
 const port = 3000   
 
 app.use(express.json());
 
+app.use(require('./routes/index'));
 
 //Iniciar servidor + DB
 async function start() {
@@ -17,17 +18,19 @@ async function start() {
   }  
 
   try {
-    await db.sequelize.sync()
-    console.log('Drop and Resync Db');
+    await db.sequelize.sync();
+    console.log('Database sync completed.');
   } catch (error) {
     console.error('Unable to sync database:', error);
   }
 
   try {
     app.listen(port, () => {
-      console.log(`Example app listening on port ${port}`)
+      console.log(`Example app listening on port ${port}`);
     });
   } catch (error) {
     console.error('Unable to connect server:', error);
   }
 }
+
+start();
