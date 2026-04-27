@@ -5,8 +5,8 @@ module.exports = {
         try {
             const users = await User.findAll({
                 attributes: [
-                    'username', 'email', 'birth_date', 'gender', 
-                    'height', 'weight', 'is_active'
+                    'username', 'email', 'birthDate', 'gender', 
+                    'height', 'weight', 'iActive'
                 ],
                 include: {
                     model: Rol,
