@@ -98,13 +98,20 @@ module.exports = {
   async deleteUser(req, res) {
     try {
       const { id } = req.params;
-      const user = await User.findByPk(id);
+      const user = await User.findOne({
+        where: {
+          id: id,
+          isDeleted: false
+        }
+      });
 
       if (!user) {
         return res.status(404).json({ message: 'Usuario no encontrado.' });
+        
       }
-
-      await user.destroy();
+      await user.update({ isDeleted: true });
+      await user.update({ isActive: false });
+      // await user.destroy();
       return res.status(200).json({ message: 'Usuario eliminado.' });
     } catch (error) {
       return res.status(getErrorStatus(error)).json({ message: getErrorMessage(error) });
