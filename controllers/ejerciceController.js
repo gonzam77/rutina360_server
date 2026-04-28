@@ -19,28 +19,36 @@ function getErrorMessage(error) {
 module.exports = {
   async createEjercice(req, res) {
     try {
-      
-      // 1. Verificamos si el body es un array (vienen varios)
-      if (Array.isArray(data)) {
-        // Usamos bulkCreate para inserción masiva
-        const nuevosEjercicios = await Ejercicio.bulkCreate(data, { 
-          validate: true // Esto asegura que cada objeto cumpla con las reglas del modelo
-        });
-        
-        return res.status(201).json({
-          message: 'Ejercicios creados con éxito',
-          count: nuevosEjercicios.length,
-          data: nuevosEjercicios
-        });
-      }
+    // 1. Extraemos los datos del body primero
+    const data = req.body; 
 
-      // 2. Si no es un array, tratamos la petición como un solo objeto
-      const ejercice = await Ejercice.create(req.body);
-      return res.status(201).json({ message: 'Ejercicio creado.', data: ejercice });
+    // 2. Verificamos si viene un array (inserción masiva)
+    if (Array.isArray(data)) {
+      // IMPORTANTE: Asegúrate de usar el nombre correcto del modelo (¿Ejercice o Ejercicio?)
+      const nuevosEjercicios = await Ejercice.bulkCreate(data, { 
+        validate: true 
+      });
+
+      return res.status(201).json({
+        message: 'Ejercicios creados con éxito',
+        count: nuevosEjercicios.length,
+        data: nuevosEjercicios
+      });
+    }
+
+    // 3. Si es un solo objeto
+    const ejercice = await Ejercice.create(data);
+    return res.status(201).json({ 
+      message: 'Ejercicio creado.', 
+      data: ejercice 
+    });
 
     } catch (error) {
       console.error('Error createEjercice:', error);
-      return res.status(getErrorStatus(error)).json({ message: getErrorMessage(error) });
+      // Usamos tus funciones auxiliares de error
+      return res.status(getErrorStatus(error)).json({ 
+        message: getErrorMessage(error) 
+      });
     }
   },
 
