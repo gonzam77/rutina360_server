@@ -1,21 +1,16 @@
-require('dotenv').config(); // Carga las variables de entorno
+require('dotenv').config();
 const { Sequelize } = require('sequelize');
 
-const sequelize = new Sequelize(
-  process.env.DB_NAME,     // Nombre de la base de datos
-  process.env.DB_USER,     // Usuario
-  process.env.DB_PASSWORD, // Contraseña
-  {
-    host: process.env.DB_HOST,
-    dialect: process.env.DB_DIALECT,
-    logging: false,
-    dialectOptions: {
-      ssl: {
-        require: true,
-        rejectUnauthorized: false,
-      },
-    },
+// Asegúrate de que DATABASE_URL en Render sea la "Internal Database URL"
+const sequelize = new Sequelize(process.env.DATABASE_URL, {
+  dialect: 'postgres',
+  logging: false, // Opcional, para limpiar los logs
+  dialectOptions: {
+    ssl: {
+      require: true,
+      rejectUnauthorized: false
+    }
   }
-);
+});
 
 module.exports = sequelize;
