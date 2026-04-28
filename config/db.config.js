@@ -1,8 +1,15 @@
-const { Sequelize } = require('sequelize')
+require('dotenv').config(); // Carga las variables de entorno
+const { Sequelize } = require('sequelize');
 
-const sequelize = new Sequelize('RUTINA_360', 'postgres', '123456', {
-  host: 'localhost',
-  dialect: 'postgres'
-});
+const sequelize = new Sequelize(
+  process.env.DB_NAME,     // Nombre de la base de datos
+  process.env.DB_USER,     // Usuario
+  process.env.DB_PASSWORD, // Contraseña
+  {
+    host: process.env.DB_HOST,
+    dialect: process.env.DB_DIALECT,
+    // Opcional: logging: false para que no ensucie la consola con queries SQL
+  }
+);
 
 module.exports = sequelize;
