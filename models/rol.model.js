@@ -2,12 +2,12 @@ module.exports = (sequelize, DataTypes) => {
 
   const Rol = sequelize.define('Rol', {
     id: {
-      type: Datatypes.INTEGER,
+      type: DataTypes.INTEGER,
       primaryKey: true,
       autoIncrement: true
     },
     name: {
-      type: Datatypes.STRING,
+      type: DataTypes.STRING,
       allowNull: false
     }
   });    

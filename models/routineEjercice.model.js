@@ -6,11 +6,11 @@ module.exports = (sequelize, DataTypes) => {
             primaryKey: true,
             autoIncrement: true
         },
-        id_routine: {
+        idRoutine: {
             type: DataTypes.INTEGER,
             allowNull: false
         },
-        id_ejercice: {
+        idEjercice: {
             type: DataTypes.INTEGER,
             allowNull: false
         },
