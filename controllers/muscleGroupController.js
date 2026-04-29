@@ -17,27 +17,27 @@ function getErrorMessage(error) {
 }
 
 module.exports = {
-  async createMuscularGroup(req, res) {
+  async createMuscleGroup(req, res) {
     try {
       const muscleGroup = await MuscleGroup.create(req.body);
       return res.status(201).json({ message: 'Grupo muscular creado.', data: muscleGroup });
     } catch (error) {
-      console.error('Error createMuscularGroup:', error);
+      console.error('Error createMuscleGroup:', error);
       return res.status(getErrorStatus(error)).json({ message: getErrorMessage(error) });
     }
   },
 
-  async getMuscularGroups(req, res) {
+  async getMuscleGroups(req, res) {
     try {
       const muscleGroups = await MuscleGroup.findAll();
       return res.status(200).json({ data: muscleGroups });
     } catch (error) {
-      console.error('Error getMuscularGroups:', error);
+      console.error('Error getMuscleGroups:', error);
       return res.status(getErrorStatus(error)).json({ message: getErrorMessage(error) });
     }
   },
 
-  async getMuscularGroupById(req, res) {
+  async getMuscleGroupById(req, res) {
     try {
       const { id } = req.params;
       const muscleGroup = await MuscleGroup.findByPk(id);
@@ -48,12 +48,12 @@ module.exports = {
 
       return res.status(200).json({ data: muscleGroup });
     } catch (error) {
-      console.error('Error getMuscularGroupById:', error);
+      console.error('Error getMuscleGroupById:', error);
       return res.status(getErrorStatus(error)).json({ message: getErrorMessage(error) });
     }
   },
 
-  async updateMuscularGroup(req, res) {
+  async updateMuscleGroup(req, res) {
     try {
       const { id } = req.params;
       const muscleGroup = await MuscleGroup.findByPk(id);
@@ -65,12 +65,12 @@ module.exports = {
       await muscleGroup.update(req.body);
       return res.status(200).json({ message: 'Grupo muscular actualizado.', data: muscleGroup });
     } catch (error) {
-      console.error('Error updateMuscularGroup:', error);
+      console.error('Error updateMuscleGroup:', error);
       return res.status(getErrorStatus(error)).json({ message: getErrorMessage(error) });
     }
   },
 
-  async deleteMuscularGroup(req, res) {
+  async deleteMuscleGroup(req, res) {
     try {
       const { id } = req.params;
       const muscleGroup = await MuscleGroup.findByPk(id);
@@ -82,7 +82,7 @@ module.exports = {
       await muscleGroup.destroy();
       return res.status(200).json({ message: 'Grupo muscular eliminado.' });
     } catch (error) {
-      console.error('Error deleteMuscularGroup:', error);
+      console.error('Error deleteMuscleGroup:', error);
       return res.status(getErrorStatus(error)).json({ message: getErrorMessage(error) });
     }
   },
