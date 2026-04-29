@@ -13,7 +13,7 @@ module.exports = (sequelize, DataTypes) => {
     email: {
       type: DataTypes.STRING,
       allowNull: false,
-      unique: true
+      unique: false
     },
     password: {
       type: DataTypes.STRING,
@@ -33,39 +33,42 @@ module.exports = (sequelize, DataTypes) => {
     },
     phone: {
       type: DataTypes.STRING,
-      allowNull: false
+      allowNull: true
     },
     height: {
       type: DataTypes.INTEGER,
-      allowNull: false
+      allowNull: true
     },
     weight: {
       type: DataTypes.INTEGER,
-      allowNull: false
+      allowNull: true
     },
     address: {
       type: DataTypes.STRING,
-      allowNull: false
+      allowNull: true
     },
     goal: {
       type: DataTypes.STRING,
-      allowNull: false
+      allowNull: true
     },
     weeklyAvailability: {
       type: DataTypes.STRING,
-      allowNull: false
+      allowNull: true
     },
     isActive: {
       type: DataTypes.BOOLEAN,
-      allowNull: false
+      allowNull: false,
+      defaultValue: true
     },
     isVerified: {
       type: DataTypes.BOOLEAN,
-      allowNull: false
+      allowNull: false,
+      defaultValue: true
     },
     isDeleted: {
       type: DataTypes.BOOLEAN,
-      allowNull: false
+      allowNull: false,
+      defaultValue: false
     },
     createdAt: {
       type: DataTypes.DATE,
