@@ -13,7 +13,48 @@ function getErrorMessage(error) {
   if (Array.isArray(error?.errors) && error.errors.length > 0) {
     return error.errors.map((e) => e.message).join(', ');
   }
+  if (error?.message) {
+    return error.message;
+  }
   return 'Error interno.';
+}
+
+function toNullableString(value) {
+  if (value === undefined || value === null) return null;
+  const normalized = String(value).trim();
+  return normalized === '' ? null : normalized;
+}
+
+function toNullableFloat(value) {
+  if (value === undefined || value === null || value === '') return null;
+  const normalized = String(value).replace(',', '.').trim();
+  const parsed = Number.parseFloat(normalized);
+  return Number.isNaN(parsed) ? null : parsed;
+}
+
+function normalizeUserPayload(payload = {}) {
+  const normalized = { ...payload };
+
+  if (Object.prototype.hasOwnProperty.call(payload, 'phone')) {
+    normalized.phone = toNullableString(payload.phone);
+  }
+  if (Object.prototype.hasOwnProperty.call(payload, 'address')) {
+    normalized.address = toNullableString(payload.address);
+  }
+  if (Object.prototype.hasOwnProperty.call(payload, 'goal')) {
+    normalized.goal = toNullableString(payload.goal);
+  }
+  if (Object.prototype.hasOwnProperty.call(payload, 'weeklyAvailability')) {
+    normalized.weeklyAvailability = toNullableString(payload.weeklyAvailability);
+  }
+  if (Object.prototype.hasOwnProperty.call(payload, 'height')) {
+    normalized.height = toNullableFloat(payload.height);
+  }
+  if (Object.prototype.hasOwnProperty.call(payload, 'weight')) {
+    normalized.weight = toNullableFloat(payload.weight);
+  }
+
+  return normalized;
 }
 
 module.exports = {
@@ -50,9 +91,10 @@ module.exports = {
     }
   },
 
-    async createUser(req, res) {
+  async createUser(req, res) {
     try {
-      const user = await User.create(req.body);
+      const normalizedPayload = normalizeUserPayload(req.body);
+      const user = await User.create(normalizedPayload);
       const createdUser = await User.findByPk(user.id, { attributes: { exclude: ['password'] } });
       return res.status(201).json({ data: createdUser });
     } catch (error) {
@@ -66,7 +108,8 @@ module.exports = {
       const { id } = req.params;
       const user = await User.findByPk(id);
       if (!user) return res.status(404).json({ message: 'Usuario no encontrado.' });
-      await user.update(req.body);
+      const normalizedPayload = normalizeUserPayload(req.body);
+      await user.update(normalizedPayload);
       const updatedUser = await User.findByPk(id, { attributes: { exclude: ['password'] } });
       return res.status(200).json({ data: updatedUser });
     } catch (error) {

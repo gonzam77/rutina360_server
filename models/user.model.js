@@ -36,11 +36,11 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: true
     },
     height: {
-      type: DataTypes.INTEGER,
+      type: DataTypes.FLOAT,
       allowNull: true
     },
     weight: {
-      type: DataTypes.INTEGER,
+      type: DataTypes.FLOAT,
       allowNull: true
     },
     address: {
