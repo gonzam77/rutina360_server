@@ -47,11 +47,10 @@ db.Routine.hasMany(db.RoutineAthlete, { foreignKey: 'idRoutine' });
 db.RoutineAthlete.belongsTo(db.User, { foreignKey: 'idAthlete', as: 'athlete' });
 db.User.hasMany(db.RoutineAthlete, { foreignKey: 'idAthlete', as: 'routineAssignments' });
 
-db.CoachAthlete.belongsTo(db.User, { foreignKey: 'idCoach' });
-db.User.hasMany(db.CoachAthlete, { foreignKey: 'idCoach' });
+db.CoachAthlete.belongsTo(db.User, { foreignKey: 'idCoach', as: 'coach' });
+db.User.hasMany(db.CoachAthlete, { foreignKey: 'idCoach', as: 'coachAssignments' });
 
-db.CoachAthlete.belongsTo(db.User, { foreignKey: 'idAthlete' });
-db.User.hasMany(db.CoachAthlete, { foreignKey: 'idAthlete' });
+db.CoachAthlete.belongsTo(db.User, { foreignKey: 'idAthlete', as: 'athlete' });
+db.User.hasMany(db.CoachAthlete, { foreignKey: 'idAthlete', as: 'athleteAssignments' });
 
 module.exports = db;
-

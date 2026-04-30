@@ -117,6 +117,28 @@ module.exports = {
     }
   },
 
+  async getCoachAthletes(req, res) {
+    try {
+      const { idCoach, idAthlete } = req.query;
+      const where = {};
+      if (idCoach) where.idCoach = idCoach;
+      if (idAthlete) where.idAthlete = idAthlete;
+
+      const relations = await CoachAthlete.findAll({
+        where,
+        include: [
+          { model: User, as: 'coach', attributes: { exclude: ['password'] } },
+          { model: User, as: 'athlete', attributes: { exclude: ['password'] } },
+        ],
+      });
+
+      return res.status(200).json({ data: relations });
+    } catch (error) {
+      console.error('Error getCoachAthletes:', error);
+      return res.status(getErrorStatus(error)).json({ message: getErrorMessage(error) });
+    }
+  },
+
   async linkAthleteToCoach(req, res) {
     try {
       const { idCoach, idAthlete } = req.body;

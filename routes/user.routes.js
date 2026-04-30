@@ -4,6 +4,9 @@ const router = express.Router();
 const userController = require('../controllers/userController');
 
 router.post('/', userController.createUser);
+router.post('/link', userController.linkAthleteToCoach);
+router.get('/link', userController.getCoachAthletes);
+router.delete('/link', userController.unlinkAthleteFromCoach);
 router.get('/', userController.getUsers);
 router.get('/:id', userController.getUserById);
 router.put('/:id', userController.updateUser);

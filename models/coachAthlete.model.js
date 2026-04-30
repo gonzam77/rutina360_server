@@ -16,15 +16,18 @@ module.exports = (sequelize, DataTypes) => {
     },
     createdAt: {
         type: DataTypes.DATE,
-        allowNull: false
+      allowNull: false,
+      defaultValue: DataTypes.NOW
     },
     isActive: {
         type: DataTypes.BOOLEAN,
-        allowNull: false
+      allowNull: false,
+      defaultValue: true
     },
     isDeleted: {
         type: DataTypes.BOOLEAN,
-        allowNull: false
+      allowNull: false,
+      defaultValue: false
     } 
     })
 
