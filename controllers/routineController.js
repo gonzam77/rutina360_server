@@ -1,6 +1,24 @@
 const { Routine, RoutineAthlete, User, sequelize } = require('../models');
 
 module.exports = {
+  async getRoutines(req, res) {
+    try {
+      const { idUser } = req.query;
+      const where = {};
+      if (idUser !== undefined) where.idUser = idUser;
+
+      const routines = await Routine.findAll({
+        where,
+        include: [{ model: User, as: 'creator', attributes: { exclude: ['password'] } }],
+      });
+
+      return res.status(200).json({ data: routines });
+    } catch (error) {
+      console.error('Error getRoutines:', error);
+      return res.status(500).json({ message: 'Error al obtener rutinas.' });
+    }
+  },
+
   async createRoutine(req, res) {
     try {
       const { name, idUser, order, time } = req.body;

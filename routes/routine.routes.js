@@ -3,6 +3,7 @@ const router = express.Router();
 
 const routineController = require('../controllers/routineController');
 
+router.get('/', routineController.getRoutines);
 router.post('/', routineController.createRoutine);
 router.post('/assign', routineController.assignRoutine);
 router.get('/assign', routineController.getActiveAssignments);
