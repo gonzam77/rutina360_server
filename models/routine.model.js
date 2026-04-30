@@ -10,17 +10,22 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.STRING,
         allowNull: false
     },
-    idUser: {
+    idOwner: {
         type: DataTypes.INTEGER,
         allowNull: false
+    },
+    idDesignated: {
+        type: DataTypes.INTEGER,
+        allowNull: true
     },
     order: {
         type: DataTypes.INTEGER,
-        allowNull: false
+        allowNull: false,
+        defaultValue: 1
     },
     time: {
         type: DataTypes.INTEGER,
-        allowNull: false
+        allowNull: true
     }
     });
 

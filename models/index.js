@@ -37,6 +37,12 @@ db.Ejercice.hasMany(db.RoutineEjercice, { foreignKey: 'idEjercice' });
 db.RoutineEjercice.belongsTo(db.Routine, { foreignKey: 'idRoutine' });
 db.Routine.hasMany(db.RoutineEjercice, { foreignKey: 'idRoutine' });
 
+db.Routine.belongsTo(db.User, { foreignKey: 'idOwner', as: 'owner' });
+db.User.hasMany(db.Routine, { foreignKey: 'idOwner', as: 'ownedRoutines' });
+
+db.Routine.belongsTo(db.User, { foreignKey: 'idDesignated', as: 'designated' });
+db.User.hasMany(db.Routine, { foreignKey: 'idDesignated', as: 'designatedRoutines' });
+
 db.CoachAthlete.belongsTo(db.User, { foreignKey: 'idCoach' });
 db.User.hasMany(db.CoachAthlete, { foreignKey: 'idCoach' });
 
