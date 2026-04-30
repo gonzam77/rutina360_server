@@ -15,6 +15,7 @@ db.Ejercice = require("../models/ejercice.model")(sequelize, DataTypes);
 db.MuscleGroup = require("../models/muscleGroup.model")(sequelize, DataTypes);
 db.Routine = require("../models/routine.model")(sequelize, DataTypes);
 db.RoutineEjercice = require("./routineEjercice.model")(sequelize, DataTypes);
+db.RoutineAthlete = require("./routineAthlete.model")(sequelize, DataTypes);
 db.CoachAthlete = require("./coachAthlete.model")(sequelize, DataTypes);
 
 
@@ -37,11 +38,14 @@ db.Ejercice.hasMany(db.RoutineEjercice, { foreignKey: 'idEjercice' });
 db.RoutineEjercice.belongsTo(db.Routine, { foreignKey: 'idRoutine' });
 db.Routine.hasMany(db.RoutineEjercice, { foreignKey: 'idRoutine' });
 
-db.Routine.belongsTo(db.User, { foreignKey: 'idOwner', as: 'owner' });
-db.User.hasMany(db.Routine, { foreignKey: 'idOwner', as: 'ownedRoutines' });
+db.Routine.belongsTo(db.User, { foreignKey: 'idUser', as: 'creator' });
+db.User.hasMany(db.Routine, { foreignKey: 'idUser', as: 'createdRoutines' });
 
-db.Routine.belongsTo(db.User, { foreignKey: 'idDesignated', as: 'designated' });
-db.User.hasMany(db.Routine, { foreignKey: 'idDesignated', as: 'designatedRoutines' });
+db.RoutineAthlete.belongsTo(db.Routine, { foreignKey: 'idRoutine' });
+db.Routine.hasMany(db.RoutineAthlete, { foreignKey: 'idRoutine' });
+
+db.RoutineAthlete.belongsTo(db.User, { foreignKey: 'idAthlete', as: 'athlete' });
+db.User.hasMany(db.RoutineAthlete, { foreignKey: 'idAthlete', as: 'routineAssignments' });
 
 db.CoachAthlete.belongsTo(db.User, { foreignKey: 'idCoach' });
 db.User.hasMany(db.CoachAthlete, { foreignKey: 'idCoach' });

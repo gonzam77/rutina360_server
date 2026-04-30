@@ -1,138 +1,189 @@
-const { Routine, RoutineEjercice, Ejercice, User, sequelize } = require('../models');
+const { Routine, RoutineAthlete, User, sequelize } = require('../models');
 
 module.exports = {
   async createRoutine(req, res) {
-    const t = await sequelize.transaction();
     try {
-      const { name, idOwner, idDesignated, idUser, order, time, exercises } = req.body;
-      const ownerId = idOwner ?? idUser;
+      const { name, idUser, order, time } = req.body;
 
-      if (!name || !ownerId) {
-        await t.rollback();
-        return res.status(400).json({ message: 'Los campos name e idOwner son obligatorios.' });
+      if (!name || !idUser) {
+        return res.status(400).json({ message: 'Los campos name e idUser son obligatorios.' });
       }
 
-      const routine = await Routine.create(
-        { name, idOwner: ownerId, idDesignated, order, time },
-        { transaction: t }
-      );
-
-      if (Array.isArray(exercises) && exercises.length > 0) {
-        const routineExercises = exercises.map((ex) => ({
-          ...ex,
-          idRoutine: routine.id,
-        }));
-        await RoutineEjercice.bulkCreate(routineExercises, { transaction: t });
-      }
-
-      await t.commit();
-      return res.status(201).json({ message: 'Rutina creada con ejercicios.', data: routine });
+      const routine = await Routine.create({ name, idUser, order, time });
+      return res.status(201).json({ message: 'Rutina creada.', data: routine });
     } catch (error) {
-      await t.rollback();
       console.error('Error createRoutine:', error);
       return res.status(500).json({ message: 'Error al crear la rutina.' });
     }
   },
 
-  async getRoutines(req, res) {
+  async assignRoutine(req, res) {
+    const t = await sequelize.transaction();
     try {
-      const { idOwner, idDesignated, idUser } = req.query;
-      const where = {};
+      const { idRoutine, idAthlete, idAthletes } = req.body;
 
-      if (idOwner !== undefined) where.idOwner = idOwner;
-      if (idUser !== undefined) where.idOwner = idUser;
-      if (idDesignated !== undefined) where.idDesignated = idDesignated;
+      if (!idRoutine) {
+        await t.rollback();
+        return res.status(400).json({ message: 'El campo idRoutine es obligatorio.' });
+      }
 
-      const routines = await Routine.findAll({
+      const athleteIds = Array.isArray(idAthletes)
+        ? idAthletes
+        : idAthlete !== undefined
+        ? [idAthlete]
+        : [];
+
+      if (athleteIds.length === 0) {
+        await t.rollback();
+        return res.status(400).json({ message: 'Debes enviar idAthlete o idAthletes.' });
+      }
+
+      const routine = await Routine.findByPk(idRoutine, { transaction: t });
+      if (!routine) {
+        await t.rollback();
+        return res.status(404).json({ message: 'Rutina no encontrada.' });
+      }
+
+      const athletes = await User.findAll({
+        where: { id: athleteIds },
+        attributes: ['id'],
+        transaction: t,
+      });
+
+      if (athletes.length !== athleteIds.length) {
+        await t.rollback();
+        return res.status(404).json({ message: 'Uno o más atletas no existen.' });
+      }
+
+      const assignments = [];
+      for (const athleteId of athleteIds) {
+        const existingAssignment = await RoutineAthlete.findOne({
+          where: { idRoutine, idAthlete: athleteId },
+          transaction: t,
+        });
+
+        if (existingAssignment) {
+          await existingAssignment.update(
+            { isActive: true, isDeleted: false },
+            { transaction: t }
+          );
+          assignments.push(existingAssignment);
+          continue;
+        }
+
+        const createdAssignment = await RoutineAthlete.create(
+          {
+            idRoutine,
+            idAthlete: athleteId,
+            isActive: true,
+            isDeleted: false,
+          },
+          { transaction: t }
+        );
+        assignments.push(createdAssignment);
+      }
+
+      await t.commit();
+      return res.status(201).json({
+        message: 'Rutina asignada correctamente.',
+        data: assignments,
+      });
+    } catch (error) {
+      await t.rollback();
+      console.error('Error assignRoutine:', error);
+      return res.status(500).json({ message: 'Error al asignar la rutina.' });
+    }
+  },
+
+  async unassignRoutine(req, res) {
+    const t = await sequelize.transaction();
+    try {
+      const { idRoutine, idAthlete, idAthletes } = req.body;
+
+      if (!idRoutine) {
+        await t.rollback();
+        return res.status(400).json({ message: 'El campo idRoutine es obligatorio.' });
+      }
+
+      const athleteIds = Array.isArray(idAthletes)
+        ? idAthletes
+        : idAthlete !== undefined
+        ? [idAthlete]
+        : [];
+
+      if (athleteIds.length === 0) {
+        await t.rollback();
+        return res.status(400).json({ message: 'Debes enviar idAthlete o idAthletes.' });
+      }
+
+      const [updatedCount] = await RoutineAthlete.update(
+        { isActive: false, isDeleted: true },
+        {
+          where: { idRoutine, idAthlete: athleteIds },
+          transaction: t,
+        }
+      );
+
+      await t.commit();
+      return res.status(200).json({
+        message: 'Relación rutina-atleta eliminada lógicamente.',
+        data: { updatedCount },
+      });
+    } catch (error) {
+      await t.rollback();
+      console.error('Error unassignRoutine:', error);
+      return res.status(500).json({ message: 'Error al desasignar la rutina.' });
+    }
+  },
+
+  async getActiveAssignments(req, res) {
+    try {
+      const { idRoutine, idAthlete } = req.query;
+      const where = { isActive: true, isDeleted: false };
+
+      if (idRoutine !== undefined) where.idRoutine = idRoutine;
+      if (idAthlete !== undefined) where.idAthlete = idAthlete;
+
+      const assignments = await RoutineAthlete.findAll({
         where,
         include: [
-          { model: RoutineEjercice, include: [Ejercice] },
-          { model: User, as: 'owner', attributes: { exclude: ['password'] } },
-          { model: User, as: 'designated', attributes: { exclude: ['password'] } },
+          { model: Routine, attributes: ['id', 'name', 'idUser', 'order', 'time'] },
+          { model: User, as: 'athlete', attributes: { exclude: ['password'] } },
         ],
       });
-      return res.status(200).json({ data: routines });
+
+      return res.status(200).json({ data: assignments });
     } catch (error) {
-      return res.status(500).json({ message: 'Error al obtener rutinas.' });
+      console.error('Error getActiveAssignments:', error);
+      return res.status(500).json({ message: 'Error al obtener asignaciones activas.' });
     }
   },
 
-  async getRoutineById(req, res) {
+  async getActiveAssignmentsByRoutine(req, res) {
     try {
-      const { id } = req.params;
-      const routine = await Routine.findByPk(id, {
-        include: [
-          { model: RoutineEjercice, include: [Ejercice] },
-          { model: User, as: 'owner', attributes: { exclude: ['password'] } },
-          { model: User, as: 'designated', attributes: { exclude: ['password'] } },
-        ],
+      const { idRoutine } = req.params;
+      const assignments = await RoutineAthlete.findAll({
+        where: { idRoutine, isActive: true, isDeleted: false },
+        include: [{ model: User, as: 'athlete', attributes: { exclude: ['password'] } }],
       });
-      if (!routine) return res.status(404).json({ message: 'Rutina no encontrada.' });
-      return res.status(200).json({ data: routine });
+      return res.status(200).json({ data: assignments });
     } catch (error) {
-      return res.status(500).json({ message: 'Error al obtener la rutina.' });
+      console.error('Error getActiveAssignmentsByRoutine:', error);
+      return res.status(500).json({ message: 'Error al obtener asignaciones por rutina.' });
     }
   },
 
-  async updateRoutine(req, res) {
-    const t = await sequelize.transaction();
+  async getActiveAssignmentsByAthlete(req, res) {
     try {
-      const { id } = req.params;
-      const { name, idOwner, idDesignated, idUser, order, time, exercises } = req.body;
-      const ownerId = idOwner ?? idUser;
-
-      const routine = await Routine.findByPk(id);
-      if (!routine) {
-        await t.rollback();
-        return res.status(404).json({ message: 'Rutina no encontrada.' });
-      }
-
-      const payload = {};
-      if (name !== undefined) payload.name = name;
-      if (ownerId !== undefined) payload.idOwner = ownerId;
-      if (idDesignated !== undefined) payload.idDesignated = idDesignated;
-      if (order !== undefined) payload.order = order;
-      if (time !== undefined) payload.time = time;
-
-      await routine.update(payload, { transaction: t });
-
-      if (Array.isArray(exercises)) {
-        await RoutineEjercice.destroy({ where: { idRoutine: id }, transaction: t });
-
-        if (exercises.length > 0) {
-          const routineExercises = exercises.map((ex) => ({
-            ...ex,
-            idRoutine: id,
-          }));
-          await RoutineEjercice.bulkCreate(routineExercises, { transaction: t });
-        }
-      }
-
-      await t.commit();
-      return res.status(200).json({ message: 'Rutina actualizada.', data: routine });
+      const { idAthlete } = req.params;
+      const assignments = await RoutineAthlete.findAll({
+        where: { idAthlete, isActive: true, isDeleted: false },
+        include: [{ model: Routine, attributes: ['id', 'name', 'idUser', 'order', 'time'] }],
+      });
+      return res.status(200).json({ data: assignments });
     } catch (error) {
-      await t.rollback();
-      return res.status(500).json({ message: 'Error al actualizar la rutina.' });
-    }
-  },
-
-  async deleteRoutine(req, res) {
-    const t = await sequelize.transaction();
-    try {
-      const { id } = req.params;
-      const routine = await Routine.findByPk(id, { transaction: t });
-      if (!routine) {
-        await t.rollback();
-        return res.status(404).json({ message: 'Rutina no encontrada.' });
-      }
-
-      await RoutineEjercice.destroy({ where: { idRoutine: id }, transaction: t });
-      await routine.destroy({ transaction: t });
-      await t.commit();
-      return res.status(200).json({ message: 'Rutina eliminada.' });
-    } catch (error) {
-      await t.rollback();
-      return res.status(500).json({ message: 'Error al eliminar.' });
+      console.error('Error getActiveAssignmentsByAthlete:', error);
+      return res.status(500).json({ message: 'Error al obtener asignaciones por atleta.' });
     }
   },
 };

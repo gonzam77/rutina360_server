@@ -4,9 +4,10 @@ const router = express.Router();
 const routineController = require('../controllers/routineController');
 
 router.post('/', routineController.createRoutine);
-router.get('/', routineController.getRoutines);
-router.get('/:id', routineController.getRoutineById);
-router.put('/:id', routineController.updateRoutine);
-router.delete('/:id', routineController.deleteRoutine);
+router.post('/assign', routineController.assignRoutine);
+router.get('/assign', routineController.getActiveAssignments);
+router.get('/assign/routine/:idRoutine', routineController.getActiveAssignmentsByRoutine);
+router.get('/assign/athlete/:idAthlete', routineController.getActiveAssignmentsByAthlete);
+router.patch('/assign', routineController.unassignRoutine);
 
 module.exports = router;

@@ -10,13 +10,9 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.STRING,
         allowNull: false
     },
-    idOwner: {
+    idUser: {
         type: DataTypes.INTEGER,
         allowNull: false
-    },
-    idDesignated: {
-        type: DataTypes.INTEGER,
-        allowNull: true
     },
     order: {
         type: DataTypes.INTEGER,
