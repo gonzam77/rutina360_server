@@ -1,9 +1,17 @@
+require('dotenv').config();
 const express = require('express');
+const cors = require('cors');
 const db = require('./models/index');
 
 const app = express();
-const port = 3000   
+const port = 3000;
 
+const corsOrigin = process.env.CORS_ORIGIN || true;
+
+app.use(cors({
+  origin: corsOrigin,
+  credentials: true,
+}));
 app.use(express.json());
 
 app.use(require('./routes/index'));
@@ -15,7 +23,7 @@ async function start() {
     console.log('Connection has been established successfully.');
   } catch (error) {
     console.error('Unable to connect to the database:', error);
-  }  
+  }
 
   try {
     await db.sequelize.sync({ force: false });

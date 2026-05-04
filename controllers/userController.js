@@ -1,4 +1,9 @@
 const { User, Rol, CoachAthlete } = require('../models');
+const bcrypt = require('bcrypt');
+const jwt = require('jsonwebtoken');
+
+const JWT_SECRET = process.env.JWT_SECRET || 'dev_jwt_secret_change_me';
+const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '8h';
 
 function getErrorStatus(error) {
   const sequelizeErrorNames = [
@@ -57,6 +62,54 @@ function normalizeUserPayload(payload = {}) {
   return normalized;
 }
 
+async function checkPassword(user, password) {
+  if (!user?.password || !password) return false;
+
+  try {
+    return await bcrypt.compare(password, user.password);
+  } catch (_error) {
+    return user.password === password;
+  }
+}
+
+function buildAuthResponse(user) {
+  const payload = {
+    id: user.id,
+    username: user.username,
+    idRole: user.idRole,
+  };
+
+  const token = jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+
+  return {
+    token,
+    user: {
+      id: user.id,
+      username: user.username,
+      email: user.email,
+      idRole: user.idRole,
+      Rol: user.Rol,
+    },
+  };
+}
+
+async function hashPasswordIfPresent(payload = {}) {
+  if (!Object.prototype.hasOwnProperty.call(payload, 'password')) {
+    return payload;
+  }
+
+  const password = String(payload.password || '').trim();
+  if (!password) {
+    return payload;
+  }
+
+  const hashedPassword = await bcrypt.hash(password, 10);
+  return {
+    ...payload,
+    password: hashedPassword,
+  };
+}
+
 module.exports = {
   async getUsers(req, res) {
     try {
@@ -71,23 +124,55 @@ module.exports = {
       return res.status(getErrorStatus(error)).json({ message: getErrorMessage(error) });
     }
   },
-  
+
   async getAuthUser(req, res) {
     try {
-      const { name, password } = req.query;
+      const { username, name, password } = req.body;
+      const login = (username || name || '').trim();
+
+      if (!login || !password) {
+        return res.status(400).json({ message: 'Usuario y contrase\u00f1a son obligatorios.' });
+      }
+
       const user = await User.findOne({
-        where: { username: name, password: password, isActive: true, isDeleted: false },
-        attributes: { exclude: ['password'] },
+        where: { username: login, isActive: true, isDeleted: false },
         include: [{ model: Rol, attributes: ['id', 'name'] }],
       });
-      
-      return res.status(200).json({ data: user });
-      
+
+      if (!user) {
+        return res.status(401).json({ message: 'Credenciales inv\u00e1lidas.' });
+      }
+
+      const isValidPassword = await checkPassword(user, password);
+      if (!isValidPassword) {
+        return res.status(401).json({ message: 'Credenciales inv\u00e1lidas.' });
+      }
+
+      return res.status(200).json({ data: buildAuthResponse(user) });
     } catch (error) {
       console.error('Error getAuthUser:', error);
       return res.status(getErrorStatus(error)).json({ message: getErrorMessage(error) });
     }
-  }, 
+  },
+
+  async getCurrentUser(req, res) {
+    try {
+      const userId = req.authUser?.id;
+      const user = await User.findByPk(userId, {
+        attributes: { exclude: ['password'] },
+        include: [{ model: Rol, attributes: ['id', 'name'] }],
+      });
+
+      if (!user || user.isDeleted || !user.isActive) {
+        return res.status(404).json({ message: 'Usuario no encontrado.' });
+      }
+
+      return res.status(200).json({ data: user });
+    } catch (error) {
+      console.error('Error getCurrentUser:', error);
+      return res.status(getErrorStatus(error)).json({ message: getErrorMessage(error) });
+    }
+  },
 
   async getUserById(req, res) {
     try {
@@ -111,7 +196,8 @@ module.exports = {
   async createUser(req, res) {
     try {
       const normalizedPayload = normalizeUserPayload(req.body);
-      const user = await User.create(normalizedPayload);
+      const payloadWithHashedPassword = await hashPasswordIfPresent(normalizedPayload);
+      const user = await User.create(payloadWithHashedPassword);
       const createdUser = await User.findByPk(user.id, { attributes: { exclude: ['password'] } });
       return res.status(201).json({ data: createdUser });
     } catch (error) {
@@ -126,7 +212,8 @@ module.exports = {
       const user = await User.findByPk(id);
       if (!user) return res.status(404).json({ message: 'Usuario no encontrado.' });
       const normalizedPayload = normalizeUserPayload(req.body);
-      await user.update(normalizedPayload);
+      const payloadWithHashedPassword = await hashPasswordIfPresent(normalizedPayload);
+      await user.update(payloadWithHashedPassword);
       const updatedUser = await User.findByPk(id, { attributes: { exclude: ['password'] } });
       return res.status(200).json({ data: updatedUser });
     } catch (error) {
@@ -160,7 +247,7 @@ module.exports = {
     try {
       const { idCoach, idAthlete } = req.body;
       const relation = await CoachAthlete.create({ idCoach, idAthlete });
-      return res.status(201).json({ message: 'Atleta vinculado con éxito.', data: relation });
+      return res.status(201).json({ message: 'Atleta vinculado con \u00e9xito.', data: relation });
     } catch (error) {
       console.error('Error linkAthleteToCoach:', error);
       return res.status(getErrorStatus(error)).json({ message: getErrorMessage(error) });
@@ -171,7 +258,7 @@ module.exports = {
     try {
       const { idCoach, idAthlete } = req.body;
       await CoachAthlete.destroy({ where: { idCoach, idAthlete } });
-      return res.status(200).json({ message: 'Vínculo eliminado.' });
+      return res.status(200).json({ message: 'V\u00ednculo eliminado.' });
     } catch (error) {
       return res.status(500).json({ message: 'Error al desvincular.' });
     }
@@ -189,7 +276,7 @@ module.exports = {
 
       if (!user) {
         return res.status(404).json({ message: 'Usuario no encontrado.' });
-        
+
       }
       await user.update({ isDeleted: true });
       await user.update({ isActive: false });
