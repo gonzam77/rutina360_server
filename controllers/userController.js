@@ -71,6 +71,23 @@ module.exports = {
       return res.status(getErrorStatus(error)).json({ message: getErrorMessage(error) });
     }
   },
+  
+  async getAuthUser(req, res) {
+    try {
+      const { name, password } = req.query;
+      const user = await User.findOne({
+        where: { username: name, password: password, isActive: true, isDeleted: false },
+        attributes: { exclude: ['password'] },
+        include: [{ model: Rol, attributes: ['id', 'name'] }],
+      });
+      
+      return res.status(200).json({ data: user });
+      
+    } catch (error) {
+      console.error('Error getAuthUser:', error);
+      return res.status(getErrorStatus(error)).json({ message: getErrorMessage(error) });
+    }
+  }, 
 
   async getUserById(req, res) {
     try {
