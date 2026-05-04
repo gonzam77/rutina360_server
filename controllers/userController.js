@@ -292,5 +292,25 @@ module.exports = {
     } catch (error) {
       return res.status(getErrorStatus(error)).json({ message: getErrorMessage(error) });
     }
+  },
+  async permanentlyDeleteUser(req, res) {
+    try {
+      const { id } = req.params;
+
+      const user = await User.findByPk(id);
+
+      if (!user) {
+        return res.status(404).json({ message: 'Usuario no encontrado.' });
+      }
+
+      await user.destroy();
+
+      return res.status(200).json({ message: 'Usuario eliminado permanentemente.' });
+
+    } catch (error) {
+      return res
+        .status(getErrorStatus(error))
+        .json({ message: getErrorMessage(error) });
+    }
   }
 };
