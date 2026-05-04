@@ -178,7 +178,7 @@ module.exports = {
     try {
       const { id } = req.params;
       const user = await User.findByPk(id, {
-        attributes: { exclude: ['password'] },
+        // attributes: { exclude: ['password'] },
         include: [{ model: Rol, attributes: ['id', 'name'] }],
       });
 
@@ -214,7 +214,10 @@ module.exports = {
       const normalizedPayload = normalizeUserPayload(req.body);
       const payloadWithHashedPassword = await hashPasswordIfPresent(normalizedPayload);
       await user.update(payloadWithHashedPassword);
-      const updatedUser = await User.findByPk(id, { attributes: { exclude: ['password'] } });
+      const updatedUser = await User.findByPk(
+        id, 
+        // { attributes: { exclude: ['password'] } }
+      );
       return res.status(200).json({ data: updatedUser });
     } catch (error) {
       return res.status(getErrorStatus(error)).json({ message: getErrorMessage(error) });
@@ -231,8 +234,12 @@ module.exports = {
       const relations = await CoachAthlete.findAll({
         where,
         include: [
-          { model: User, as: 'coach', attributes: { exclude: ['password'] } },
-          { model: User, as: 'athlete', attributes: { exclude: ['password'] } },
+          { model: User, as: 'coach', 
+            // attributes: { exclude: ['password'] } 
+          },
+          { model: User, as: 'athlete', 
+            // attributes: { exclude: ['password'] } 
+          },
         ],
       });
 
