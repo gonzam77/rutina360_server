@@ -31,16 +31,55 @@ module.exports = {
   },
 
   async createRoutine(req, res) {
+    const t = await sequelize.transaction();
     try {
-      const { name, idUser, order, time } = req.body;
+      const { name, idUser, order, time, exercises } = req.body;
 
       if (!name || !idUser) {
+        await t.rollback();
         return res.status(400).json({ message: 'Los campos name e idUser son obligatorios.' });
       }
 
-      const routine = await Routine.create({ name, idUser, order, time });
-      return res.status(201).json({ message: 'Rutina creada.', data: routine });
+      const routine = await Routine.create({ name, idUser, order, time }, { transaction: t });
+
+      let createdExercises = [];
+      if (Array.isArray(exercises) && exercises.length > 0) {
+        const exerciseIds = exercises.map((exercise) => exercise.idEjercice);
+        const existingExercises = await Ejercice.findAll({
+          where: { id: exerciseIds },
+          attributes: ['id'],
+          transaction: t,
+        });
+
+        if (existingExercises.length !== exerciseIds.length) {
+          await t.rollback();
+          return res.status(404).json({ message: 'Uno o más ejercicios no existen.' });
+        }
+
+        const routineExercisePayload = exercises.map((exercise) => ({
+          idRoutine: routine.id,
+          idEjercice: exercise.idEjercice,
+          series: exercise.series,
+          rest: exercise.rest,
+          comments: exercise.comments,
+        }));
+
+        createdExercises = await RoutineEjercice.bulkCreate(routineExercisePayload, {
+          transaction: t,
+          validate: true,
+        });
+      }
+
+      await t.commit();
+      return res.status(201).json({
+        message: 'Rutina creada.',
+        data: {
+          ...routine.toJSON(),
+          exercises: createdExercises,
+        },
+      });
     } catch (error) {
+      await t.rollback();
       console.error('Error createRoutine:', error);
       return res.status(500).json({ message: 'Error al crear la rutina.' });
     }
