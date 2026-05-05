@@ -215,7 +215,21 @@ module.exports = {
       const assignments = await RoutineAthlete.findAll({
         where,
         include: [
-          { model: Routine, attributes: ['id', 'name', 'idUser', 'order', 'time'] },
+          {
+            model: Routine,
+            attributes: ['id', 'name', 'idUser', 'order', 'time'],
+            include: [
+              {
+                model: RoutineEjercice,
+                include: [
+                  {
+                    model: Ejercice,
+                    include: [{ model: MuscleGroup, attributes: ['id', 'name'] }],
+                  },
+                ],
+              },
+            ],
+          },
           { model: User, as: 'athlete', attributes: { exclude: ['password'] } },
         ],
       });
