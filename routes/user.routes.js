@@ -14,6 +14,6 @@ router.get('/', userController.getUsers);
 router.get('/:id', userController.getUserById);
 router.put('/:id', userController.updateUser);
 router.delete('/:id', userController.deleteUser); 
-router.delete('eliminar/:id', userController.permanentlyDeleteUser); 
+router.delete('/eliminar/:id', userController.permanentlyDeleteUser); 
 
 module.exports = router;
