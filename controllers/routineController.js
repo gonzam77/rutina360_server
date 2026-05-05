@@ -204,4 +204,22 @@ module.exports = {
       return res.status(500).json({ message: 'Error al obtener asignaciones por atleta.' });
     }
   },
+
+  async deleteRoutine(req, res) {
+
+    try {
+      const { id } = req.params;
+      const routine = await Routine.findByPk(id);
+
+      if (!routine) { 
+        return res.status(404).json({ message: 'Rutina no encontrada.' });
+      }
+
+      await routine.destroy();
+
+    } catch (error) {
+      return res.status(500).json({ message: 'Error al eliminar la rutina.' });
+    }
+
+  }
 };
