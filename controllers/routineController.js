@@ -256,18 +256,33 @@ module.exports = {
   },
 
   async deleteRoutine(req, res) {
-
+    const t = await sequelize.transaction();
     try {
       const { id } = req.params;
-      const routine = await Routine.findByPk(id);
+      const routine = await Routine.findByPk(id, { transaction: t });
 
       if (!routine) { 
+        await t.rollback();
         return res.status(404).json({ message: 'Rutina no encontrada.' });
       }
 
-      await routine.destroy();
+      await RoutineEjercice.destroy({
+        where: { idRoutine: id },
+        transaction: t,
+      });
+
+      await RoutineAthlete.destroy({
+        where: { idRoutine: id },
+        transaction: t,
+      });
+
+      await routine.destroy({ transaction: t });
+
+      await t.commit();
+      return res.status(200).json({ message: 'Rutina eliminada correctamente.' });
 
     } catch (error) {
+      await t.rollback();
       return res.status(500).json({ message: 'Error al eliminar la rutina.' });
     }
 
