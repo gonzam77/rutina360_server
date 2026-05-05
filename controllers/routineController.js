@@ -276,6 +276,11 @@ module.exports = {
               },
             ],
           },
+          {
+            model: User,
+            as: 'athlete',
+            attributes: { exclude: ['password'] }
+          }
         ],
       });
       return res.status(200).json({ data: assignments });
