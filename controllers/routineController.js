@@ -260,7 +260,23 @@ module.exports = {
       const { idAthlete } = req.params;
       const assignments = await RoutineAthlete.findAll({
         where: { idAthlete, isActive: true, isDeleted: false },
-        include: [{ model: Routine, attributes: ['id', 'name', 'idUser', 'order', 'time'] }],
+        include: [
+          {
+            model: Routine,
+            attributes: ['id', 'name', 'idUser', 'order', 'time'],
+            include: [
+              {
+                model: RoutineEjercice,
+                include: [
+                  {
+                    model: Ejercice,
+                    include: [{ model: MuscleGroup, attributes: ['id', 'name'] }],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
       });
       return res.status(200).json({ data: assignments });
     } catch (error) {
