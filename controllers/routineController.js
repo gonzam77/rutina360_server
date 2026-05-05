@@ -1,4 +1,4 @@
-const { Routine, RoutineAthlete, User, sequelize } = require('../models');
+const { Routine, RoutineAthlete, RoutineEjercice, User, sequelize, Ejercice, MuscleGroup } = require('../models');
 
 module.exports = {
   async getRoutines(req, res) {
@@ -9,7 +9,18 @@ module.exports = {
 
       const routines = await Routine.findAll({
         where,
-        include: [{ model: User, as: 'creator', attributes: { exclude: ['password'] } }],
+        include: [
+          { model: User, as: 'creator', attributes: { exclude: ['password'] } },
+          {
+            model: RoutineEjercice,
+            include: [
+              {
+                model: Ejercice,
+                include: [{ model: MuscleGroup, attributes: ['id', 'name'] }],
+              },
+            ],
+          },
+        ],
       });
 
       return res.status(200).json({ data: routines });
