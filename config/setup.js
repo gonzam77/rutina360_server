@@ -9,14 +9,14 @@ const setupDatabase = async () => {
     await db.Rol.bulkCreate(initialRoles, { ignoreDuplicates: true });
     
     // Insertar Grupos Musculares
-    await db.MuscularGroup.bulkCreate(initialGroups, { ignoreDuplicates: true });
+    await db.MuscleGroup.bulkCreate(initialGroups, { ignoreDuplicates: true });
     
     // Insertar Ejercicios (Relacionados)
     await db.Ejercice.bulkCreate(initialEjercices, { ignoreDuplicates: true });
     
     // Aquí puedes buscar el ID del grupo e insertar los ejercicios correspondientes
     console.log(">> Datos iniciales cargados con éxito.");
-    
+
   } catch (error) {
     console.error(">> Error cargando datos iniciales:", error);
   }
