@@ -1,6 +1,7 @@
 const { User, Rol, CoachAthlete } = require('../models');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
+const { Op } = require('sequelize');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dev_jwt_secret_change_me';
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '8h';
@@ -109,7 +110,7 @@ function getUsersScopeWhereByAuthUser(authUser) {
   if (authUser.idRole === ROLE_ADMIN) {
     return {
       isDeleted: false,
-      [User.sequelize.Op.or]: [
+      [Op.or]: [
         { id: authUser.id },
         { idAdminOwner: authUser.id },
       ],
@@ -166,7 +167,11 @@ async function hashPasswordIfPresent(payload = {}) {
 module.exports = {
   async getUsers(req, res) {
     try {
+      const { idRole } = req.query;
       const where = getUsersScopeWhereByAuthUser(req.authUser);
+      if (idRole !== undefined && idRole !== null && idRole !== '') {
+        where.idRole = Number(idRole);
+      }
       const users = await User.findAll({
         where,
         include: [{ model: Rol, attributes: ['id', 'name'] }],
