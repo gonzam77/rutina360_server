@@ -4,6 +4,28 @@ const initialRoles = require('../src/seeders/roles');
 const initialGroups = require('../src/seeders/muscularGroup');
 const initialEjercices = require('../src/seeders/ejercices');
 
+async function alignIdSequence(model) {
+  const tableNameMeta = model.getTableName();
+  const tableName = typeof tableNameMeta === 'string' ? tableNameMeta : tableNameMeta.tableName;
+  const schemaName =
+    typeof tableNameMeta === 'string'
+      ? null
+      : tableNameMeta.schema && tableNameMeta.schema !== 'public'
+      ? tableNameMeta.schema
+      : null;
+
+  const fullTableName = schemaName ? `"${schemaName}"."${tableName}"` : `"${tableName}"`;
+  const tableRefForSequence = schemaName ? `${schemaName}.${tableName}` : tableName;
+
+  await db.sequelize.query(`
+    SELECT setval(
+      pg_get_serial_sequence('${tableRefForSequence}', 'id'),
+      COALESCE((SELECT MAX(id) FROM ${fullTableName}), 1),
+      (SELECT COUNT(*) > 0 FROM ${fullTableName})
+    );
+  `);
+}
+
 async function ensureSuperAdmin() {
   const superAdminUser = (process.env.SUPERADMIN_USER || '').trim();
   const superAdminPass = (process.env.SUPERADMIN_PASS || '').trim();
@@ -49,6 +71,9 @@ const setupDatabase = async () => {
     await db.Rol.bulkCreate(initialRoles, { ignoreDuplicates: true });
     await db.MuscleGroup.bulkCreate(initialGroups, { ignoreDuplicates: true });
     await db.Ejercice.bulkCreate(initialEjercices, { ignoreDuplicates: true });
+    await alignIdSequence(db.Rol);
+    await alignIdSequence(db.MuscleGroup);
+    await alignIdSequence(db.Ejercice);
 
     await ensureSuperAdmin();
 
