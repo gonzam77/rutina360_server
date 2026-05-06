@@ -5,6 +5,7 @@ const routineController = require('../controllers/routineController');
 
 router.get('/', routineController.getRoutines); //Traer rutina por coach
 router.post('/', routineController.createRoutine); //Crear rutinas por coach
+router.put('/:id', routineController.updateRoutine); //Modificar rutina
 router.delete('/:id', routineController.deleteRoutine); //Eliminar rutina
 router.post('/assign', routineController.assignRoutine); // Asignar rutina a atleta
 router.get('/assign', routineController.getActiveAssignments); // Traer rutinas activas

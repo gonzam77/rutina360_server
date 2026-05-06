@@ -1,4 +1,4 @@
-const { Ejercice } = require('../models');
+const { Ejercice, RoutineEjercice, sequelize } = require('../models');
 
 function getErrorStatus(error) {
   const sequelizeErrorNames = [
@@ -96,17 +96,30 @@ module.exports = {
   },
 
   async deleteEjercice(req, res) {
+    const t = await sequelize.transaction();
     try {
       const { id } = req.params;
-      const ejercice = await Ejercice.findByPk(id);
+      const ejercice = await Ejercice.findByPk(id, { transaction: t });
 
       if (!ejercice) {
+        await t.rollback();
         return res.status(404).json({ message: 'Ejercicio no encontrado.' });
       }
 
-      await ejercice.destroy();
-      return res.status(200).json({ message: 'Ejercicio eliminado.' });
+      const deletedRoutineRelations = await RoutineEjercice.destroy({
+        where: { idEjercice: id },
+        transaction: t,
+      });
+
+      await ejercice.destroy({ transaction: t });
+
+      await t.commit();
+      return res.status(200).json({
+        message: 'Ejercicio eliminado.',
+        data: { deletedRoutineRelations },
+      });
     } catch (error) {
+      await t.rollback();
       console.error('Error deleteEjercice:', error);
       return res.status(getErrorStatus(error)).json({ message: getErrorMessage(error) });
     }
