@@ -1,24 +1,60 @@
-const db = require("../models"); // Donde exportas db.User, db.Rol, etc.
-const initialRoles = require("../src/seeders/roles");
-const initialGroups = require("../src/seeders/muscularGroup");
-const initialEjercices = require("../src/seeders/ejercices");
+const db = require('../models');
+const bcrypt = require('bcrypt');
+const initialRoles = require('../src/seeders/roles');
+const initialGroups = require('../src/seeders/muscularGroup');
+const initialEjercices = require('../src/seeders/ejercices');
+
+async function ensureSuperAdmin() {
+  const superAdminUser = (process.env.SUPERADMIN_USER || '').trim();
+  const superAdminPass = (process.env.SUPERADMIN_PASS || '').trim();
+
+  if (!superAdminUser || !superAdminPass) {
+    console.warn('>> SUPERADMIN_USER o SUPERADMIN_PASS no definidos en .env. No se creo superadmin.');
+    return;
+  }
+
+  const hashedPassword = await bcrypt.hash(superAdminPass, 10);
+  const defaultEmail = 'gonzam77@gmail.com';
+
+  const superAdminPayload = {
+    username: superAdminUser,
+    email: defaultEmail,
+    password: hashedPassword,
+    idRole: 1,
+    idAdminOwner: null,
+    birthDate: new Date('1990-01-01'),
+    gender: 'No especificado',
+    isActive: true,
+    isVerified: true,
+    isDeleted: false,
+  };
+
+  const existingSuperAdmin = await db.User.findOne({ where: { username: superAdminUser } });
+
+  if (!existingSuperAdmin) {
+    await db.User.create(superAdminPayload);
+    console.log('>> Superadmin creado correctamente.');
+    return;
+  }
+
+  await existingSuperAdmin.update({
+    ...superAdminPayload,
+    email: existingSuperAdmin.email || defaultEmail,
+  });
+  console.log('>> Superadmin actualizado correctamente.');
+}
 
 const setupDatabase = async () => {
   try {
-    // Insertar Roles
     await db.Rol.bulkCreate(initialRoles, { ignoreDuplicates: true });
-    
-    // Insertar Grupos Musculares
     await db.MuscleGroup.bulkCreate(initialGroups, { ignoreDuplicates: true });
-    
-    // Insertar Ejercicios (Relacionados)
     await db.Ejercice.bulkCreate(initialEjercices, { ignoreDuplicates: true });
-    
-    // Aquí puedes buscar el ID del grupo e insertar los ejercicios correspondientes
-    console.log(">> Datos iniciales cargados con éxito.");
 
+    await ensureSuperAdmin();
+
+    console.log('>> Datos iniciales cargados con exito.');
   } catch (error) {
-    console.error(">> Error cargando datos iniciales:", error);
+    console.error('>> Error cargando datos iniciales:', error);
   }
 };
 

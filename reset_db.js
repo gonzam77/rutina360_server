@@ -1,22 +1,19 @@
-// reset_db.js
-require('dotenv').config(); 
-// QUITAMOS las llaves porque db.config exporta la instancia directamente
-const sequelize = require('./config/db.config'); 
+require('dotenv').config();
+const setupDatabase = require('./config/setup');
 
 async function reset() {
   try {
-    console.log("Conectando a:", process.env.DATABASE_URL);
-    
-    // IMPORTANTE: Si usas 'sequelize' a secas, solo se crearán tablas vacías.
-    // Para que se creen TUS modelos (User, Exercise, etc.), necesitamos el archivo de modelos.
-    const db = require('./models/index'); // O la ruta a tu archivo de modelos
-    
+    console.log('Conectando a:', process.env.DATABASE_URL);
+
+    const db = require('./models/index');
+
     await db.sequelize.sync({ force: true });
-    
-    console.log("\n✅ Éxito: Las tablas han sido reseteadas en Render.");
+    await setupDatabase();
+
+    console.log('\n? �xito: Las tablas han sido reseteadas y las semillas cargadas.');
     process.exit(0);
   } catch (error) {
-    console.error("\n❌ Error al resetear la base de datos:", error);
+    console.error('\n? Error al resetear la base de datos:', error);
     process.exit(1);
   }
 }
