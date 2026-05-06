@@ -19,13 +19,18 @@ function getErrorMessage(error) {
 module.exports = {
   async createEjercice(req, res) {
     try {
-    // 1. Extraemos los datos del body primero
-    const data = req.body; 
+    const pickEjerciceFields = (payload = {}) => ({
+      name: payload.name,
+      idMuscleGroup: payload.idMuscleGroup,
+    });
+
+    const data = req.body;
 
     // 2. Verificamos si viene un array (inserción masiva)
     if (Array.isArray(data)) {
       // IMPORTANTE: Asegúrate de usar el nombre correcto del modelo (¿Ejercice o Ejercicio?)
-      const nuevosEjercicios = await Ejercice.bulkCreate(data, { 
+      const payload = data.map((item) => pickEjerciceFields(item));
+      const nuevosEjercicios = await Ejercice.bulkCreate(payload, {
         validate: true 
       });
 
@@ -37,7 +42,8 @@ module.exports = {
     }
 
     // 3. Si es un solo objeto
-    const ejercice = await Ejercice.create(data);
+    const payload = pickEjerciceFields(data);
+    const ejercice = await Ejercice.create(payload);
     return res.status(201).json({ 
       message: 'Ejercicio creado.', 
       data: ejercice 
@@ -87,7 +93,11 @@ module.exports = {
         return res.status(404).json({ message: 'Ejercicio no encontrado.' });
       }
 
-      await ejercice.update(req.body);
+      const payload = {
+        name: req.body?.name,
+        idMuscleGroup: req.body?.idMuscleGroup,
+      };
+      await ejercice.update(payload);
       return res.status(200).json({ message: 'Ejercicio actualizado.', data: ejercice });
     } catch (error) {
       console.error('Error updateEjercice:', error);

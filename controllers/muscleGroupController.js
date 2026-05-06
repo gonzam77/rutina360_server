@@ -19,7 +19,8 @@ function getErrorMessage(error) {
 module.exports = {
   async createMuscleGroup(req, res) {
     try {
-      const muscleGroup = await MuscleGroup.create(req.body);
+      const { name } = req.body || {};
+      const muscleGroup = await MuscleGroup.create({ name });
       return res.status(201).json({ message: 'Grupo muscular creado.', data: muscleGroup });
     } catch (error) {
       console.error('Error createMuscleGroup:', error);
@@ -62,7 +63,8 @@ module.exports = {
         return res.status(404).json({ message: 'Grupo muscular no encontrado.' });
       }
 
-      await muscleGroup.update(req.body);
+      const { name } = req.body || {};
+      await muscleGroup.update({ name });
       return res.status(200).json({ message: 'Grupo muscular actualizado.', data: muscleGroup });
     } catch (error) {
       console.error('Error updateMuscleGroup:', error);
