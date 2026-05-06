@@ -140,6 +140,7 @@ function resolveAdminOwnerForCreate(payload, authUser) {
 
   if (payloadRole === ROLE_COACH || payloadRole === ROLE_ATHLETE) {
     if (authUser?.idRole === ROLE_ADMIN) return authUser.id;
+    if (authUser?.idRole === ROLE_COACH) return authUser.idAdminOwner || null;
     if (authUser?.idRole === ROLE_SUPER_ADMIN && payloadAdminOwner) return payloadAdminOwner;
     return payloadAdminOwner;
   }
@@ -245,6 +246,18 @@ module.exports = {
         return res.status(404).json({ message: 'Usuario no encontrado.' });
       }
 
+      if (req.authUser?.idRole === ROLE_ADMIN) {
+        if (user.id !== req.authUser.id && user.idAdminOwner !== req.authUser.id) {
+          return res.status(403).json({ message: 'No puedes acceder a usuarios de otro administrador.' });
+        }
+      }
+
+      if (req.authUser?.idRole === ROLE_COACH) {
+        if (user.id !== req.authUser.id && user.idAdminOwner !== req.authUser.idAdminOwner) {
+          return res.status(403).json({ message: 'No puedes acceder a usuarios fuera de tu grupo.' });
+        }
+      }
+
       return res.status(200).json({ data: user });
     } catch (error) {
       console.error('Error getUserById:', error);
@@ -255,6 +268,17 @@ module.exports = {
   async createUser(req, res) {
     try {
       const normalizedPayload = normalizeUserPayload(req.body);
+      const requesterRole = Number(req.authUser?.idRole);
+      const targetRole = Number(normalizedPayload.idRole);
+
+      if (requesterRole === ROLE_ADMIN && ![ROLE_COACH, ROLE_ATHLETE].includes(targetRole)) {
+        return res.status(403).json({ message: 'Como administrador solo puedes crear coach o atletas.' });
+      }
+
+      if (requesterRole === ROLE_COACH && targetRole !== ROLE_ATHLETE) {
+        return res.status(403).json({ message: 'Como coach solo puedes crear atletas.' });
+      }
+
       normalizedPayload.idAdminOwner = resolveAdminOwnerForCreate(normalizedPayload, req.authUser);
 
       if (
@@ -286,6 +310,19 @@ module.exports = {
       const { id } = req.params;
       const user = await User.findByPk(id);
       if (!user) return res.status(404).json({ message: 'Usuario no encontrado.' });
+
+      if (req.authUser?.idRole === ROLE_ADMIN) {
+        if (![ROLE_COACH, ROLE_ATHLETE].includes(Number(user.idRole)) || user.idAdminOwner !== req.authUser.id) {
+          return res.status(403).json({ message: 'Solo puedes editar coach/atletas de tu grupo.' });
+        }
+      }
+
+      if (req.authUser?.idRole === ROLE_COACH) {
+        if (Number(user.idRole) !== ROLE_ATHLETE || user.idAdminOwner !== req.authUser.idAdminOwner) {
+          return res.status(403).json({ message: 'Solo puedes editar atletas de tu grupo.' });
+        }
+      }
+
       const normalizedPayload = normalizeUserPayload(req.body);
       const payloadWithHashedPassword = await hashPasswordIfPresent(normalizedPayload);
       await user.update(payloadWithHashedPassword);
@@ -301,6 +338,10 @@ module.exports = {
 
   async getCoachAthletes(req, res) {
     try {
+      if (![ROLE_SUPER_ADMIN, ROLE_ADMIN].includes(Number(req.authUser?.idRole))) {
+        return res.status(403).json({ message: 'Solo administrador o superadministrador puede ver vinculos coach-atleta.' });
+      }
+
       const { idCoach, idAthlete } = req.query;
       const where = {};
       if (idCoach) where.idCoach = idCoach;
@@ -331,6 +372,10 @@ module.exports = {
 
   async linkAthleteToCoach(req, res) {
     try {
+      if (![ROLE_SUPER_ADMIN, ROLE_ADMIN].includes(Number(req.authUser?.idRole))) {
+        return res.status(403).json({ message: 'Solo administrador o superadministrador puede vincular atleta-coach.' });
+      }
+
       const { idCoach, idAthlete } = req.body;
       const [coach, athlete] = await Promise.all([
         User.findByPk(idCoach),
@@ -363,6 +408,10 @@ module.exports = {
 
   async unlinkAthleteFromCoach(req, res) {
     try {
+      if (![ROLE_SUPER_ADMIN, ROLE_ADMIN].includes(Number(req.authUser?.idRole))) {
+        return res.status(403).json({ message: 'Solo administrador o superadministrador puede desvincular atleta-coach.' });
+      }
+
       const { idCoach, idAthlete } = req.body;
       await CoachAthlete.destroy({ where: { idCoach, idAthlete } });
       return res.status(200).json({ message: 'V\u00ednculo eliminado.' });
@@ -385,6 +434,17 @@ module.exports = {
         return res.status(404).json({ message: 'Usuario no encontrado.' });
 
       }
+      if (req.authUser?.idRole === ROLE_ADMIN) {
+        const targetRole = Number(user.idRole);
+        if (![ROLE_COACH, ROLE_ATHLETE].includes(targetRole) || user.idAdminOwner !== req.authUser.id) {
+          return res.status(403).json({ message: 'Solo puedes eliminar coach/atletas de tu grupo.' });
+        }
+      }
+
+      if (req.authUser?.idRole === ROLE_COACH) {
+        return res.status(403).json({ message: 'Como coach no puedes eliminar usuarios.' });
+      }
+
       await user.update({ isDeleted: true });
       await user.update({ isActive: false });
       // await user.destroy();
@@ -395,6 +455,10 @@ module.exports = {
   },
   async permanentlyDeleteUser(req, res) {
     try {
+      if (Number(req.authUser?.idRole) !== ROLE_SUPER_ADMIN) {
+        return res.status(403).json({ message: 'Solo el superadministrador puede eliminar permanentemente.' });
+      }
+
       const { id } = req.params;
 
       const user = await User.findByPk(id);

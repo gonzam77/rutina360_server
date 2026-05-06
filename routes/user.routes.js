@@ -11,9 +11,9 @@ router.post('/link', authenticateJWT, userController.linkAthleteToCoach);
 router.get('/link', authenticateJWT, userController.getCoachAthletes);
 router.delete('/link', authenticateJWT, userController.unlinkAthleteFromCoach);
 router.get('/', authenticateJWT, userController.getUsers);
-router.get('/:id', userController.getUserById);
-router.put('/:id', userController.updateUser);
-router.delete('/:id', userController.deleteUser); 
-router.delete('/eliminar/:id', userController.permanentlyDeleteUser); 
+router.get('/:id', authenticateJWT, userController.getUserById);
+router.put('/:id', authenticateJWT, userController.updateUser);
+router.delete('/:id', authenticateJWT, userController.deleteUser); 
+router.delete('/eliminar/:id', authenticateJWT, userController.permanentlyDeleteUser); 
 
 module.exports = router;

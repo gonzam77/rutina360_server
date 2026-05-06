@@ -1,4 +1,9 @@
 const { Routine, RoutineAthlete, RoutineEjercice, User, sequelize, Ejercice, MuscleGroup } = require('../models');
+const { Op } = require('sequelize');
+const ROLE_SUPER_ADMIN = 1;
+const ROLE_ADMIN = 2;
+const ROLE_COACH = 3;
+const ROLE_ATHLETE = 4;
 
 const ROUTINE_FIELDS = ['name', 'idUser', 'order', 'time'];
 const ROUTINE_EXERCISE_FIELDS = ['idEjercice', 'series', 'rest', 'comments'];
@@ -35,6 +40,24 @@ module.exports = {
       const where = {};
       if (idUser !== undefined) where.idUser = idUser;
 
+      const requesterRole = Number(req.authUser?.idRole);
+      const requesterId = Number(req.authUser?.id);
+
+      if (requesterRole === ROLE_ADMIN) {
+        const coaches = await User.findAll({
+          where: { idRole: ROLE_COACH, idAdminOwner: requesterId, isDeleted: false },
+          attributes: ['id'],
+        });
+        const coachIds = coaches.map((coach) => coach.id);
+        where.idUser = where.idUser !== undefined
+          ? Number(where.idUser)
+          : { [Op.in]: coachIds.length > 0 ? coachIds : [-1] };
+      }
+
+      if (requesterRole === ROLE_COACH) {
+        where.idUser = requesterId;
+      }
+
       const routines = await Routine.findAll({
         where,
         include: [
@@ -62,10 +85,28 @@ module.exports = {
     const t = await sequelize.transaction();
     try {
       const { name, idUser, order, time, exercises } = req.body;
+      const requesterRole = Number(req.authUser?.idRole);
+      const requesterId = Number(req.authUser?.id);
 
       if (!name || !idUser) {
         await t.rollback();
         return res.status(400).json({ message: 'Los campos name e idUser son obligatorios.' });
+      }
+
+      const coach = await User.findByPk(idUser, { transaction: t });
+      if (!coach || Number(coach.idRole) !== ROLE_COACH) {
+        await t.rollback();
+        return res.status(400).json({ message: 'La rutina debe pertenecer a un coach valido.' });
+      }
+
+      if (requesterRole === ROLE_COACH && Number(idUser) !== requesterId) {
+        await t.rollback();
+        return res.status(403).json({ message: 'Como coach solo puedes crear rutinas propias.' });
+      }
+
+      if (requesterRole === ROLE_ADMIN && coach.idAdminOwner !== requesterId) {
+        await t.rollback();
+        return res.status(403).json({ message: 'Solo puedes crear rutinas para coachs de tu grupo.' });
       }
 
       const routine = await Routine.create({ name, idUser, order, time }, { transaction: t });
@@ -126,10 +167,28 @@ module.exports = {
       } = req.body;
 
       const routine = await Routine.findByPk(id, { transaction: t });
+      const requesterRole = Number(req.authUser?.idRole);
+      const requesterId = Number(req.authUser?.id);
 
       if (!routine) {
         await t.rollback();
         return res.status(404).json({ message: 'Rutina no encontrada.' });
+      }
+
+      const coach = await User.findByPk(routine.idUser, { transaction: t });
+      if (!coach || Number(coach.idRole) !== ROLE_COACH) {
+        await t.rollback();
+        return res.status(400).json({ message: 'La rutina no pertenece a un coach valido.' });
+      }
+
+      if (requesterRole === ROLE_COACH && routine.idUser !== requesterId) {
+        await t.rollback();
+        return res.status(403).json({ message: 'Como coach solo puedes editar tus rutinas.' });
+      }
+
+      if (requesterRole === ROLE_ADMIN && coach.idAdminOwner !== requesterId) {
+        await t.rollback();
+        return res.status(403).json({ message: 'Solo puedes editar rutinas de coachs de tu grupo.' });
       }
 
       if (exercises !== undefined && !Array.isArray(exercises)) {
@@ -365,6 +424,8 @@ module.exports = {
     const t = await sequelize.transaction();
     try {
       const { idRoutine, idAthlete, idAthletes } = req.body;
+      const requesterRole = Number(req.authUser?.idRole);
+      const requesterId = Number(req.authUser?.id);
 
       if (!idRoutine) {
         await t.rollback();
@@ -388,15 +449,47 @@ module.exports = {
         return res.status(404).json({ message: 'Rutina no encontrada.' });
       }
 
+      const coach = await User.findByPk(routine.idUser, { transaction: t });
+      if (!coach || Number(coach.idRole) !== ROLE_COACH) {
+        await t.rollback();
+        return res.status(400).json({ message: 'La rutina no pertenece a un coach valido.' });
+      }
+
+      if (requesterRole === ROLE_COACH && routine.idUser !== requesterId) {
+        await t.rollback();
+        return res.status(403).json({ message: 'Como coach solo puedes asignar tus rutinas.' });
+      }
+
+      if (requesterRole === ROLE_ADMIN && coach.idAdminOwner !== requesterId) {
+        await t.rollback();
+        return res.status(403).json({ message: 'Solo puedes asignar rutinas de coachs de tu grupo.' });
+      }
+
       const athletes = await User.findAll({
-        where: { id: athleteIds },
-        attributes: ['id'],
+        where: { id: athleteIds, idRole: ROLE_ATHLETE },
+        attributes: ['id', 'idAdminOwner'],
         transaction: t,
       });
 
       if (athletes.length !== athleteIds.length) {
         await t.rollback();
-        return res.status(404).json({ message: 'Uno o más atletas no existen.' });
+        return res.status(404).json({ message: 'Uno o mas atletas no existen.' });
+      }
+
+      if (requesterRole === ROLE_ADMIN) {
+        const outOfScope = athletes.some((athlete) => athlete.idAdminOwner !== requesterId);
+        if (outOfScope) {
+          await t.rollback();
+          return res.status(403).json({ message: 'Solo puedes asignar atletas de tu grupo.' });
+        }
+      }
+
+      if (requesterRole === ROLE_COACH) {
+        const outOfScope = athletes.some((athlete) => athlete.idAdminOwner !== req.authUser.idAdminOwner);
+        if (outOfScope) {
+          await t.rollback();
+          return res.status(403).json({ message: 'Solo puedes asignar atletas de tu grupo.' });
+        }
       }
 
       const assignments = [];
@@ -443,6 +536,8 @@ module.exports = {
     const t = await sequelize.transaction();
     try {
       const { idRoutine, idAthlete, idAthletes } = req.body;
+      const requesterRole = Number(req.authUser?.idRole);
+      const requesterId = Number(req.authUser?.id);
 
       if (!idRoutine) {
         await t.rollback();
@@ -460,6 +555,28 @@ module.exports = {
         return res.status(400).json({ message: 'Debes enviar idAthlete o idAthletes.' });
       }
 
+      const routine = await Routine.findByPk(idRoutine, { transaction: t });
+      if (!routine) {
+        await t.rollback();
+        return res.status(404).json({ message: 'Rutina no encontrada.' });
+      }
+
+      const coach = await User.findByPk(routine.idUser, { transaction: t });
+      if (!coach || Number(coach.idRole) !== ROLE_COACH) {
+        await t.rollback();
+        return res.status(400).json({ message: 'La rutina no pertenece a un coach valido.' });
+      }
+
+      if (requesterRole === ROLE_COACH && routine.idUser !== requesterId) {
+        await t.rollback();
+        return res.status(403).json({ message: 'Como coach solo puedes desasignar tus rutinas.' });
+      }
+
+      if (requesterRole === ROLE_ADMIN && coach.idAdminOwner !== requesterId) {
+        await t.rollback();
+        return res.status(403).json({ message: 'Solo puedes desasignar rutinas de coachs de tu grupo.' });
+      }
+
       const [updatedCount] = await RoutineAthlete.update(
         { isActive: false, isDeleted: true },
         {
@@ -470,7 +587,7 @@ module.exports = {
 
       await t.commit();
       return res.status(200).json({
-        message: 'Relación rutina-atleta eliminada lógicamente.',
+        message: 'Relacion rutina-atleta eliminada logicamente.',
         data: { updatedCount },
       });
     } catch (error) {
@@ -484,9 +601,32 @@ module.exports = {
     try {
       const { idRoutine, idAthlete } = req.query;
       const where = { isActive: true, isDeleted: false };
+      const requesterRole = Number(req.authUser?.idRole);
+      const requesterId = Number(req.authUser?.id);
 
       if (idRoutine !== undefined) where.idRoutine = idRoutine;
       if (idAthlete !== undefined) where.idAthlete = idAthlete;
+
+      if (requesterRole === ROLE_COACH) {
+        const ownRoutines = await Routine.findAll({
+          where: { idUser: requesterId },
+          attributes: ['id'],
+        });
+        where.idRoutine = { [Op.in]: ownRoutines.map((routine) => routine.id).concat([-1]) };
+      }
+
+      if (requesterRole === ROLE_ADMIN) {
+        const coaches = await User.findAll({
+          where: { idRole: ROLE_COACH, idAdminOwner: requesterId, isDeleted: false },
+          attributes: ['id'],
+        });
+        const coachIds = coaches.map((coach) => coach.id);
+        const allowedRoutines = await Routine.findAll({
+          where: { idUser: { [Op.in]: coachIds.length ? coachIds : [-1] } },
+          attributes: ['id'],
+        });
+        where.idRoutine = { [Op.in]: allowedRoutines.map((routine) => routine.id).concat([-1]) };
+      }
 
       const assignments = await RoutineAthlete.findAll({
         where,
@@ -520,6 +660,22 @@ module.exports = {
   async getActiveAssignmentsByRoutine(req, res) {
     try {
       const { idRoutine } = req.params;
+      const requesterRole = Number(req.authUser?.idRole);
+      const requesterId = Number(req.authUser?.id);
+      const routine = await Routine.findByPk(idRoutine);
+      if (!routine) {
+        return res.status(404).json({ message: 'Rutina no encontrada.' });
+      }
+      const coach = await User.findByPk(routine.idUser);
+      if (!coach || Number(coach.idRole) !== ROLE_COACH) {
+        return res.status(400).json({ message: 'La rutina no pertenece a un coach valido.' });
+      }
+      if (requesterRole === ROLE_COACH && routine.idUser !== requesterId) {
+        return res.status(403).json({ message: 'No puedes consultar rutinas de otros coachs.' });
+      }
+      if (requesterRole === ROLE_ADMIN && coach.idAdminOwner !== requesterId) {
+        return res.status(403).json({ message: 'No puedes consultar rutinas de otro administrador.' });
+      }
       const assignments = await RoutineAthlete.findAll({
         where: { idRoutine, isActive: true, isDeleted: false },
         include: [{ model: User, as: 'athlete', attributes: { exclude: ['password'] } }],
@@ -534,6 +690,18 @@ module.exports = {
   async getActiveAssignmentsByAthlete(req, res) {
     try {
       const { idAthlete } = req.params;
+      const requesterRole = Number(req.authUser?.idRole);
+      const requesterId = Number(req.authUser?.id);
+      const athlete = await User.findByPk(idAthlete);
+      if (!athlete || Number(athlete.idRole) !== ROLE_ATHLETE) {
+        return res.status(404).json({ message: 'Atleta no encontrado.' });
+      }
+      if (requesterRole === ROLE_COACH && athlete.idAdminOwner !== req.authUser.idAdminOwner) {
+        return res.status(403).json({ message: 'No puedes consultar atletas de otro grupo.' });
+      }
+      if (requesterRole === ROLE_ADMIN && athlete.idAdminOwner !== requesterId) {
+        return res.status(403).json({ message: 'No puedes consultar atletas de otro administrador.' });
+      }
       const assignments = await RoutineAthlete.findAll({
         where: { idAthlete, isActive: true, isDeleted: false },
         include: [
@@ -570,11 +738,29 @@ module.exports = {
     const t = await sequelize.transaction();
     try {
       const { id } = req.params;
+      const requesterRole = Number(req.authUser?.idRole);
+      const requesterId = Number(req.authUser?.id);
       const routine = await Routine.findByPk(id, { transaction: t });
 
       if (!routine) { 
         await t.rollback();
         return res.status(404).json({ message: 'Rutina no encontrada.' });
+      }
+
+      const coach = await User.findByPk(routine.idUser, { transaction: t });
+      if (!coach || Number(coach.idRole) !== ROLE_COACH) {
+        await t.rollback();
+        return res.status(400).json({ message: 'La rutina no pertenece a un coach valido.' });
+      }
+
+      if (requesterRole === ROLE_COACH && routine.idUser !== requesterId) {
+        await t.rollback();
+        return res.status(403).json({ message: 'Como coach solo puedes eliminar tus rutinas.' });
+      }
+
+      if (requesterRole === ROLE_ADMIN && coach.idAdminOwner !== requesterId) {
+        await t.rollback();
+        return res.status(403).json({ message: 'Solo puedes eliminar rutinas de coachs de tu grupo.' });
       }
 
       await RoutineEjercice.destroy({

@@ -1,6 +1,7 @@
 const jwt = require('jsonwebtoken');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dev_jwt_secret_change_me';
+const ROLE_SUPER_ADMIN = 1;
 
 function authenticateJWT(req, res, next) {
   const authHeader = req.headers.authorization;
@@ -20,6 +21,23 @@ function authenticateJWT(req, res, next) {
   }
 }
 
+function authorizeRoles(...allowedRoles) {
+  return (req, res, next) => {
+    const role = Number(req.authUser?.idRole);
+    if (!role) {
+      return res.status(401).json({ message: 'Usuario no autenticado.' });
+    }
+    if (role === ROLE_SUPER_ADMIN) {
+      return next();
+    }
+    if (!allowedRoles.includes(role)) {
+      return res.status(403).json({ message: 'No tienes permisos para esta accion.' });
+    }
+    return next();
+  };
+}
+
 module.exports = {
   authenticateJWT,
+  authorizeRoles,
 };
