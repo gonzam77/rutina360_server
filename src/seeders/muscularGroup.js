@@ -1,0 +1,16 @@
+module.exports = [
+    {id: 1, name:'Pecho'},
+    {id: 2, name:'Espalda'},
+    {id: 3, name:'Trapecio'},
+    {id: 4, name:'Hombro'},
+    {id: 5, name:'Biceps'},
+    {id: 6, name:'Triceps'},
+    {id: 7, name:'Antebrazo'},
+    {id: 8, name:'Cuadriceps'},
+    {id: 9, name:'Isquiotibiales'},
+    {id: 10, name:'Gluteos'},
+    {id: 11, name:'Aductores'},
+    {id: 12, name:'Gemelos'},
+    {id: 13, name:'Abdomen'},
+    {id: 14, name:'Lumbares'},
+]

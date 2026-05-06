@@ -26,8 +26,13 @@ async function start() {
   }
 
   try {
+    //Sincroniza DB
     await db.sequelize.sync({ force: false });
     console.log('Database sync completed.');
+    
+    // Ejecutamos la carga de datos por defecto
+    await setupDatabase();
+    console.log('Preset database.')
   } catch (error) {
     console.error('Unable to sync database:', error);
   }
