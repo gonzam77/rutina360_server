@@ -23,6 +23,10 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.INTEGER,
       allowNull: false 
     },
+    idAdminOwner: {
+      type: DataTypes.INTEGER,
+      allowNull: true
+    },
     birthDate: {
       type: DataTypes.DATE,
       allowNull: false

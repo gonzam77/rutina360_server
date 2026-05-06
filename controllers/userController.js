@@ -4,6 +4,10 @@ const jwt = require('jsonwebtoken');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dev_jwt_secret_change_me';
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '8h';
+const ROLE_SUPER_ADMIN = 1;
+const ROLE_ADMIN = 2;
+const ROLE_COACH = 3;
+const ROLE_ATHLETE = 4;
 
 function getErrorStatus(error) {
   const sequelizeErrorNames = [
@@ -77,6 +81,7 @@ function buildAuthResponse(user) {
     id: user.id,
     username: user.username,
     idRole: user.idRole,
+    idAdminOwner: user.idAdminOwner,
   };
 
   const token = jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
@@ -88,9 +93,57 @@ function buildAuthResponse(user) {
       username: user.username,
       email: user.email,
       idRole: user.idRole,
+      idAdminOwner: user.idAdminOwner,
       Rol: user.Rol,
     },
   };
+}
+
+function getUsersScopeWhereByAuthUser(authUser) {
+  if (!authUser?.id || !authUser?.idRole) return {};
+
+  if (authUser.idRole === ROLE_SUPER_ADMIN) {
+    return {};
+  }
+
+  if (authUser.idRole === ROLE_ADMIN) {
+    return {
+      isDeleted: false,
+      [User.sequelize.Op.or]: [
+        { id: authUser.id },
+        { idAdminOwner: authUser.id },
+      ],
+    };
+  }
+
+  return {
+    isDeleted: false,
+    id: authUser.id,
+  };
+}
+
+function resolveAdminOwnerForCreate(payload, authUser) {
+  const payloadRole = Number(payload.idRole);
+  const payloadAdminOwner = payload.idAdminOwner !== undefined && payload.idAdminOwner !== null
+    ? Number(payload.idAdminOwner)
+    : null;
+
+  if (payloadRole === ROLE_SUPER_ADMIN) {
+    return null;
+  }
+
+  if (payloadRole === ROLE_ADMIN) {
+    if (authUser?.idRole === ROLE_SUPER_ADMIN && payloadAdminOwner) return payloadAdminOwner;
+    return null;
+  }
+
+  if (payloadRole === ROLE_COACH || payloadRole === ROLE_ATHLETE) {
+    if (authUser?.idRole === ROLE_ADMIN) return authUser.id;
+    if (authUser?.idRole === ROLE_SUPER_ADMIN && payloadAdminOwner) return payloadAdminOwner;
+    return payloadAdminOwner;
+  }
+
+  return payloadAdminOwner;
 }
 
 async function hashPasswordIfPresent(payload = {}) {
@@ -113,8 +166,9 @@ async function hashPasswordIfPresent(payload = {}) {
 module.exports = {
   async getUsers(req, res) {
     try {
+      const where = getUsersScopeWhereByAuthUser(req.authUser);
       const users = await User.findAll({
-        // attributes: { exclude: ['password'] },
+        where,
         include: [{ model: Rol, attributes: ['id', 'name'] }],
       });
 
@@ -196,8 +250,24 @@ module.exports = {
   async createUser(req, res) {
     try {
       const normalizedPayload = normalizeUserPayload(req.body);
+      normalizedPayload.idAdminOwner = resolveAdminOwnerForCreate(normalizedPayload, req.authUser);
+
+      if (
+        (Number(normalizedPayload.idRole) === ROLE_COACH || Number(normalizedPayload.idRole) === ROLE_ATHLETE) &&
+        !normalizedPayload.idAdminOwner
+      ) {
+        return res.status(400).json({
+          message: 'Para crear coach o atleta debes indicar un administrador (idAdminOwner) o autenticarte como administrador.',
+        });
+      }
+
       const payloadWithHashedPassword = await hashPasswordIfPresent(normalizedPayload);
       const user = await User.create(payloadWithHashedPassword);
+
+      if (Number(user.idRole) === ROLE_ADMIN && !user.idAdminOwner) {
+        await user.update({ idAdminOwner: user.id });
+      }
+
       const createdUser = await User.findByPk(user.id, { attributes: { exclude: ['password'] } });
       return res.status(201).json({ data: createdUser });
     } catch (error) {
@@ -231,15 +301,19 @@ module.exports = {
       if (idCoach) where.idCoach = idCoach;
       if (idAthlete) where.idAthlete = idAthlete;
 
+      const includeCoach = { model: User, as: 'coach' };
+      const includeAthlete = { model: User, as: 'athlete' };
+
+      if (req.authUser?.idRole === ROLE_ADMIN) {
+        includeCoach.where = { idAdminOwner: req.authUser.id };
+        includeAthlete.where = { idAdminOwner: req.authUser.id };
+      }
+
       const relations = await CoachAthlete.findAll({
         where,
         include: [
-          { model: User, as: 'coach', 
-            // attributes: { exclude: ['password'] } 
-          },
-          { model: User, as: 'athlete', 
-            // attributes: { exclude: ['password'] } 
-          },
+          includeCoach,
+          includeAthlete,
         ],
       });
 
@@ -253,6 +327,27 @@ module.exports = {
   async linkAthleteToCoach(req, res) {
     try {
       const { idCoach, idAthlete } = req.body;
+      const [coach, athlete] = await Promise.all([
+        User.findByPk(idCoach),
+        User.findByPk(idAthlete),
+      ]);
+
+      if (!coach || !athlete) {
+        return res.status(404).json({ message: 'Coach o atleta no encontrado.' });
+      }
+
+      if (Number(coach.idRole) !== ROLE_COACH || Number(athlete.idRole) !== ROLE_ATHLETE) {
+        return res.status(400).json({ message: 'Los IDs enviados no corresponden a coach y atleta.' });
+      }
+
+      if (!coach.idAdminOwner || !athlete.idAdminOwner || coach.idAdminOwner !== athlete.idAdminOwner) {
+        return res.status(400).json({ message: 'Coach y atleta deben pertenecer al mismo administrador.' });
+      }
+
+      if (req.authUser?.idRole === ROLE_ADMIN && coach.idAdminOwner !== req.authUser.id) {
+        return res.status(403).json({ message: 'No puedes vincular usuarios de otro administrador.' });
+      }
+
       const relation = await CoachAthlete.create({ idCoach, idAthlete });
       return res.status(201).json({ message: 'Atleta vinculado con \u00e9xito.', data: relation });
     } catch (error) {

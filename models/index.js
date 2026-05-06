@@ -22,6 +22,8 @@ db.CoachAthlete = require("./coachAthlete.model")(sequelize, DataTypes);
 //Relaciones de tablas
 db.Rol.hasMany(db.User, { foreignKey: 'idRole' });
 db.User.belongsTo(db.Rol, { foreignKey: 'idRole' });
+db.User.belongsTo(db.User, { foreignKey: 'idAdminOwner', as: 'adminOwner' });
+db.User.hasMany(db.User, { foreignKey: 'idAdminOwner', as: 'managedUsers' });
 
 db.Comment.belongsTo(db.Note, { foreignKey: 'idNote' });
 db.Note.hasMany(db.Comment, { foreignKey: 'idNote' });
