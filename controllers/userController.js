@@ -117,6 +117,16 @@ function getUsersScopeWhereByAuthUser(authUser) {
     };
   }
 
+  if (authUser.idRole === ROLE_COACH) {
+    return {
+      isDeleted: false,
+      [Op.or]: [
+        { id: authUser.id },
+        { idRole: ROLE_ATHLETE, idAdminOwner: authUser.idAdminOwner },
+      ],
+    };
+  }
+
   return {
     isDeleted: false,
     id: authUser.id,
