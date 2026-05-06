@@ -45,6 +45,14 @@ function toNullableFloat(value) {
 function normalizeUserPayload(payload = {}) {
   const normalized = { ...payload };
 
+  if (Object.prototype.hasOwnProperty.call(payload, 'username')) {
+    const username = toNullableString(payload.username);
+    normalized.username = username ? username.toUpperCase() : username;
+  }
+  if (Object.prototype.hasOwnProperty.call(payload, 'email')) {
+    const email = toNullableString(payload.email);
+    normalized.email = email ? email.toLowerCase() : email;
+  }
   if (Object.prototype.hasOwnProperty.call(payload, 'phone')) {
     normalized.phone = toNullableString(payload.phone);
   }
@@ -198,7 +206,7 @@ module.exports = {
   async getAuthUser(req, res) {
     try {
       const { username, name, password } = req.body;
-      const login = (username || name || '').trim();
+      const login = (username || name || '').trim().toUpperCase();
 
       if (!login || !password) {
         return res.status(400).json({ message: 'Usuario y contrase\u00f1a son obligatorios.' });

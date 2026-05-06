@@ -14,8 +14,11 @@ async function alignIdSequence(model) {
       ? tableNameMeta.schema
       : null;
 
-  const fullTableName = schemaName ? `"${schemaName}"."${tableName}"` : `"${tableName}"`;
-  const tableRefForSequence = schemaName ? `${schemaName}.${tableName}` : tableName;
+  const quoteIdent = (value) => `"${String(value).replace(/"/g, '""')}"`;
+  const fullTableName = schemaName ? `${quoteIdent(schemaName)}.${quoteIdent(tableName)}` : quoteIdent(tableName);
+  const tableRefForSequence = schemaName
+    ? `${quoteIdent(schemaName)}.${quoteIdent(tableName)}`
+    : quoteIdent(tableName);
 
   await db.sequelize.query(`
     SELECT setval(
