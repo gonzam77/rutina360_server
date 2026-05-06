@@ -14,6 +14,10 @@ function getUniqueDefined(values) {
   return [...new Set(values.filter((value) => value !== undefined && value !== null))];
 }
 
+function hasDefinedValue(value) {
+  return value !== undefined && value !== null;
+}
+
 function shouldDeleteRoutineExercise(exercise) {
   return (
     exercise._delete === true ||
@@ -146,6 +150,8 @@ module.exports = {
 
       if (shouldProcessExercises) {
         const incomingExercises = Array.isArray(exercises) ? exercises : [];
+        // El front envia la lista final al editar; replaceExercises false conserva el modo incremental.
+        const shouldReplaceExercises = Array.isArray(exercises) && replaceExercises !== false;
         const exercisesMarkedForDelete = incomingExercises.filter(shouldDeleteRoutineExercise);
         const idsFromBody = [
           ...(Array.isArray(deletedExerciseIds) ? deletedExerciseIds : []),
@@ -154,21 +160,33 @@ module.exports = {
           ...exercisesMarkedForDelete.map((exercise) => exercise.id),
         ];
         const routineExerciseIdsToDelete = getUniqueDefined(idsFromBody);
+        const ejerciceIdsMarkedForDelete = getUniqueDefined(
+          exercisesMarkedForDelete
+            .filter((exercise) => !hasDefinedValue(exercise.id))
+            .map((exercise) => exercise.idEjercice)
+        );
 
-        if (exercisesMarkedForDelete.some((exercise) => exercise.id === undefined || exercise.id === null)) {
+        if (
+          exercisesMarkedForDelete.some(
+            (exercise) => !hasDefinedValue(exercise.id) && !hasDefinedValue(exercise.idEjercice)
+          )
+        ) {
           await t.rollback();
           return res.status(400).json({
-            message: 'Para eliminar un ejercicio de la rutina debes enviar el id del ejercicio_rutina.',
+            message: 'Para eliminar un ejercicio de la rutina debes enviar el id del ejercicio_rutina o idEjercice.',
           });
         }
 
         const routineExerciseIdsToDeleteSet = new Set(
           routineExerciseIdsToDelete.map((exerciseId) => String(exerciseId))
         );
+        const ejerciceIdsMarkedForDeleteSet = new Set(
+          ejerciceIdsMarkedForDelete.map((exerciseId) => String(exerciseId))
+        );
 
         const exercisesToUpsert = incomingExercises.filter((exercise) => {
           if (shouldDeleteRoutineExercise(exercise)) return false;
-          if (exercise.id === undefined || exercise.id === null) return true;
+          if (!hasDefinedValue(exercise.id)) return true;
           return !routineExerciseIdsToDeleteSet.has(String(exercise.id));
         });
 
@@ -190,7 +208,7 @@ module.exports = {
         }
 
         for (const exercise of exercisesToUpsert) {
-          if ((exercise.id === undefined || exercise.id === null) && exercise.idEjercice === undefined) {
+          if (!hasDefinedValue(exercise.id) && !hasDefinedValue(exercise.idEjercice)) {
             await t.rollback();
             return res.status(400).json({
               message: 'Para agregar un ejercicio a la rutina debes enviar idEjercice.',
@@ -198,13 +216,54 @@ module.exports = {
           }
         }
 
-        if (routineExerciseIdsToDelete.length > 0) {
-          const deletedCount = await RoutineEjercice.destroy({
-            where: { id: routineExerciseIdsToDelete, idRoutine: id },
-            transaction: t,
-          });
+        const currentRoutineExercises = await RoutineEjercice.findAll({
+          where: { idRoutine: id },
+          transaction: t,
+        });
+        const currentRoutineExercisesById = new Map();
+        const currentRoutineExercisesByEjerciceId = new Map();
 
-          if (deletedCount !== routineExerciseIdsToDelete.length) {
+        for (const routineExercise of currentRoutineExercises) {
+          currentRoutineExercisesById.set(String(routineExercise.id), routineExercise);
+
+          if (!currentRoutineExercisesByEjerciceId.has(String(routineExercise.idEjercice))) {
+            currentRoutineExercisesByEjerciceId.set(String(routineExercise.idEjercice), routineExercise);
+          }
+        }
+
+        if (
+          routineExerciseIdsToDelete.some(
+            (routineExerciseId) => !currentRoutineExercisesById.has(String(routineExerciseId))
+          )
+        ) {
+          await t.rollback();
+          return res.status(404).json({
+            message: 'Uno o mas ejercicios de la rutina no existen o no pertenecen a esta rutina.',
+          });
+        }
+
+        const routineExerciseIdsDeleted = new Set();
+        const routineExercisesToDelete = currentRoutineExercises.filter(
+          (routineExercise) =>
+            routineExerciseIdsToDeleteSet.has(String(routineExercise.id)) ||
+            ejerciceIdsMarkedForDeleteSet.has(String(routineExercise.idEjercice))
+        );
+
+        for (const routineExercise of routineExercisesToDelete) {
+          await routineExercise.destroy({ transaction: t });
+          routineExerciseIdsDeleted.add(String(routineExercise.id));
+        }
+
+        if (ejerciceIdsMarkedForDelete.length > 0) {
+          const deletedEjerciceIds = new Set(
+            routineExercisesToDelete.map((routineExercise) => String(routineExercise.idEjercice))
+          );
+
+          if (
+            ejerciceIdsMarkedForDelete.some(
+              (exerciseId) => !deletedEjerciceIds.has(String(exerciseId))
+            )
+          ) {
             await t.rollback();
             return res.status(404).json({
               message: 'Uno o mas ejercicios de la rutina no existen o no pertenecen a esta rutina.',
@@ -213,17 +272,15 @@ module.exports = {
         }
 
         const routineExerciseIdsToKeep = [];
+        const usedRoutineExerciseIds = new Set();
 
         for (const exercise of exercisesToUpsert) {
           const exercisePayload = pickDefinedFields(exercise, ROUTINE_EXERCISE_FIELDS);
 
-          if (exercise.id !== undefined && exercise.id !== null) {
-            const routineExercise = await RoutineEjercice.findOne({
-              where: { id: exercise.id, idRoutine: id },
-              transaction: t,
-            });
+          if (hasDefinedValue(exercise.id)) {
+            const routineExercise = currentRoutineExercisesById.get(String(exercise.id));
 
-            if (!routineExercise) {
+            if (!routineExercise || routineExerciseIdsDeleted.has(String(routineExercise.id))) {
               await t.rollback();
               return res.status(404).json({
                 message: 'Uno o mas ejercicios de la rutina no existen o no pertenecen a esta rutina.',
@@ -234,6 +291,21 @@ module.exports = {
               await routineExercise.update(exercisePayload, { transaction: t });
             }
             routineExerciseIdsToKeep.push(routineExercise.id);
+            usedRoutineExerciseIds.add(String(routineExercise.id));
+            continue;
+          }
+
+          const existingRoutineExercise = currentRoutineExercisesByEjerciceId.get(String(exercise.idEjercice));
+          if (
+            existingRoutineExercise &&
+            !routineExerciseIdsDeleted.has(String(existingRoutineExercise.id)) &&
+            !usedRoutineExerciseIds.has(String(existingRoutineExercise.id))
+          ) {
+            if (Object.keys(exercisePayload).length > 0) {
+              await existingRoutineExercise.update(exercisePayload, { transaction: t });
+            }
+            routineExerciseIdsToKeep.push(existingRoutineExercise.id);
+            usedRoutineExerciseIds.add(String(existingRoutineExercise.id));
             continue;
           }
 
@@ -245,18 +317,17 @@ module.exports = {
             { transaction: t, validate: true }
           );
           routineExerciseIdsToKeep.push(createdRoutineExercise.id);
+          usedRoutineExerciseIds.add(String(createdRoutineExercise.id));
         }
 
-        if (replaceExercises === true) {
-          const currentRoutineExercises = await RoutineEjercice.findAll({
-            where: { idRoutine: id },
-            transaction: t,
-          });
+        if (shouldReplaceExercises) {
           const routineExerciseIdsToKeepSet = new Set(
             routineExerciseIdsToKeep.map((exerciseId) => String(exerciseId))
           );
           const routineExercisesToRemove = currentRoutineExercises.filter(
-            (exercise) => !routineExerciseIdsToKeepSet.has(String(exercise.id))
+            (exercise) =>
+              !routineExerciseIdsDeleted.has(String(exercise.id)) &&
+              !routineExerciseIdsToKeepSet.has(String(exercise.id))
           );
 
           for (const exercise of routineExercisesToRemove) {
