@@ -348,8 +348,8 @@ module.exports = {
 
   async getCoachAthletes(req, res) {
     try {
-      if (![ROLE_SUPER_ADMIN, ROLE_ADMIN].includes(Number(req.authUser?.idRole))) {
-        return res.status(403).json({ message: 'Solo administrador o superadministrador puede ver vinculos coach-atleta.' });
+      if (![ROLE_SUPER_ADMIN, ROLE_ADMIN, ROLE_COACH].includes(Number(req.authUser?.idRole))) {
+        return res.status(403).json({ message: 'No tienes permisos para ver vinculos coach-atleta.' });
       }
 
       const { idCoach, idAthlete } = req.query;
@@ -363,6 +363,10 @@ module.exports = {
       if (req.authUser?.idRole === ROLE_ADMIN) {
         includeCoach.where = { idAdminOwner: req.authUser.id };
         includeAthlete.where = { idAdminOwner: req.authUser.id };
+      }
+      if (req.authUser?.idRole === ROLE_COACH) {
+        where.idCoach = req.authUser.id;
+        includeAthlete.where = { idAdminOwner: req.authUser.idAdminOwner };
       }
 
       const relations = await CoachAthlete.findAll({
@@ -382,8 +386,8 @@ module.exports = {
 
   async linkAthleteToCoach(req, res) {
     try {
-      if (![ROLE_SUPER_ADMIN, ROLE_ADMIN].includes(Number(req.authUser?.idRole))) {
-        return res.status(403).json({ message: 'Solo administrador o superadministrador puede vincular atleta-coach.' });
+      if (![ROLE_SUPER_ADMIN, ROLE_ADMIN, ROLE_COACH].includes(Number(req.authUser?.idRole))) {
+        return res.status(403).json({ message: 'No tienes permisos para vincular atleta-coach.' });
       }
 
       const { idCoach, idAthlete } = req.body;
@@ -408,6 +412,15 @@ module.exports = {
         return res.status(403).json({ message: 'No puedes vincular usuarios de otro administrador.' });
       }
 
+      if (req.authUser?.idRole === ROLE_COACH) {
+        if (Number(idCoach) !== Number(req.authUser.id)) {
+          return res.status(403).json({ message: 'Como coach solo puedes vincular atletas a tu propio perfil.' });
+        }
+        if (coach.idAdminOwner !== req.authUser.idAdminOwner || athlete.idAdminOwner !== req.authUser.idAdminOwner) {
+          return res.status(403).json({ message: 'Solo puedes vincular atletas de tu mismo owner.' });
+        }
+      }
+
       const relation = await CoachAthlete.create({ idCoach, idAthlete });
       return res.status(201).json({ message: 'Atleta vinculado con \u00e9xito.', data: relation });
     } catch (error) {
@@ -418,11 +431,16 @@ module.exports = {
 
   async unlinkAthleteFromCoach(req, res) {
     try {
-      if (![ROLE_SUPER_ADMIN, ROLE_ADMIN].includes(Number(req.authUser?.idRole))) {
-        return res.status(403).json({ message: 'Solo administrador o superadministrador puede desvincular atleta-coach.' });
+      if (![ROLE_SUPER_ADMIN, ROLE_ADMIN, ROLE_COACH].includes(Number(req.authUser?.idRole))) {
+        return res.status(403).json({ message: 'No tienes permisos para desvincular atleta-coach.' });
       }
 
       const { idCoach, idAthlete } = req.body;
+
+      if (req.authUser?.idRole === ROLE_COACH && Number(idCoach) !== Number(req.authUser.id)) {
+        return res.status(403).json({ message: 'Como coach solo puedes desvincular atletas de tu propio perfil.' });
+      }
+
       await CoachAthlete.destroy({ where: { idCoach, idAthlete } });
       return res.status(200).json({ message: 'V\u00ednculo eliminado.' });
     } catch (error) {
