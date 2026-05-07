@@ -15,6 +15,7 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: true,
       references: {
         model: 'Rol',
+        key: 'id'
       }
     }
   });    
