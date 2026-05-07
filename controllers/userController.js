@@ -17,7 +17,7 @@ function getErrorStatus(error) {
     'SequelizeForeignKeyConstraintError',
   ];
   return sequelizeErrorNames.includes(error?.name) ? 400 : 500;
-}
+};
 
 function getErrorMessage(error) {
   if (Array.isArray(error?.errors) && error.errors.length > 0) {
