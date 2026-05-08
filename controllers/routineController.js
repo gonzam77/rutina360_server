@@ -60,9 +60,17 @@ module.exports = {
           : { [Op.in]: coachIds.length > 0 ? coachIds : [-1] };
       }
 
-      if (requesterRole === ROLE_COACH || requesterRole === ROLE_GYM) {
+      if (requesterRole === ROLE_GYM) {
         where.idUser = requesterId;
       }
+
+      if (requesterRole === ROLE_COACH) {
+        const gymOwnerId = Number(req.authUser?.idAdminOwner);
+        where.idUser = {
+          [Op.in]: [requesterId, ...(gymOwnerId ? [gymOwnerId] : [])],
+        };
+      }
+
 
       const routines = await Routine.findAll({
         where,
@@ -456,10 +464,22 @@ module.exports = {
         return res.status(400).json({ message: 'La rutina no pertenece a un coach o gym valido.' });
       }
 
-      if ((requesterRole === ROLE_COACH || requesterRole === ROLE_GYM) && routine.idUser !== requesterId) {
+      if (requesterRole === ROLE_GYM && routine.idUser !== requesterId) {
         await t.rollback();
         return res.status(403).json({ message: 'Solo puedes asignar tus propias rutinas.' });
       }
+
+      if (requesterRole === ROLE_COACH) {
+        const gymOwnerId = Number(req.authUser?.idAdminOwner);
+        const canUseRoutine =
+          routine.idUser === requesterId || (gymOwnerId && routine.idUser === gymOwnerId);
+
+        if (!canUseRoutine) {
+          await t.rollback();
+          return res.status(403).json({ message: 'Solo puedes asignar rutinas tuyas o de tu gym.' });
+        }
+      }
+
 
       if (requesterRole === ROLE_ADMIN && coach.idAdminOwner !== requesterId) {
         await t.rollback();
@@ -568,10 +588,22 @@ module.exports = {
         return res.status(400).json({ message: 'La rutina no pertenece a un coach o gym valido.' });
       }
 
-      if ((requesterRole === ROLE_COACH || requesterRole === ROLE_GYM) && routine.idUser !== requesterId) {
+      if (requesterRole === ROLE_GYM && routine.idUser !== requesterId) {
         await t.rollback();
         return res.status(403).json({ message: 'Solo puedes desasignar tus propias rutinas.' });
       }
+
+      if (requesterRole === ROLE_COACH) {
+        const gymOwnerId = Number(req.authUser?.idAdminOwner);
+        const canUseRoutine =
+          routine.idUser === requesterId || (gymOwnerId && routine.idUser === gymOwnerId);
+
+        if (!canUseRoutine) {
+          await t.rollback();
+          return res.status(403).json({ message: 'Solo puedes desasignar rutinas tuyas o de tu gym.' });
+        }
+      }
+
 
       if (requesterRole === ROLE_ADMIN && coach.idAdminOwner !== requesterId) {
         await t.rollback();
