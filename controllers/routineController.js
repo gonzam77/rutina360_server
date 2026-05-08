@@ -39,6 +39,19 @@ function isRoutineCreatorRole(roleId) {
   return ROUTINE_CREATOR_ROLES.includes(Number(roleId));
 }
 
+async function getGymRoutineCreatorIds(gymId, options = {}) {
+  const gymIdNumber = Number(gymId);
+  if (!gymIdNumber) return [];
+
+  const coaches = await User.findAll({
+    where: { idRole: ROLE_COACH, idAdminOwner: gymIdNumber, isDeleted: false },
+    attributes: ['id'],
+    transaction: options.transaction,
+  });
+
+  return [gymIdNumber, ...coaches.map((coach) => Number(coach.id))];
+}
+
 module.exports = {
   async getRoutines(req, res) {
     try {
@@ -61,7 +74,8 @@ module.exports = {
       }
 
       if (requesterRole === ROLE_GYM) {
-        where.idUser = requesterId;
+        const allowedCreatorIds = await getGymRoutineCreatorIds(requesterId);
+        where.idUser = { [Op.in]: allowedCreatorIds.length > 0 ? allowedCreatorIds : [-1] };
       }
 
       if (requesterRole === ROLE_COACH) {
@@ -464,9 +478,12 @@ module.exports = {
         return res.status(400).json({ message: 'La rutina no pertenece a un coach o gym valido.' });
       }
 
-      if (requesterRole === ROLE_GYM && routine.idUser !== requesterId) {
-        await t.rollback();
-        return res.status(403).json({ message: 'Solo puedes asignar tus propias rutinas.' });
+      if (requesterRole === ROLE_GYM) {
+        const allowedCreatorIds = await getGymRoutineCreatorIds(requesterId, { transaction: t });
+        if (!allowedCreatorIds.includes(Number(routine.idUser))) {
+          await t.rollback();
+          return res.status(403).json({ message: 'Solo puedes asignar rutinas propias o de tus coaches.' });
+        }
       }
 
       if (requesterRole === ROLE_COACH) {
@@ -505,7 +522,15 @@ module.exports = {
         }
       }
 
-      if (requesterRole === ROLE_COACH || requesterRole === ROLE_GYM) {
+      if (requesterRole === ROLE_GYM) {
+        const outOfScope = athletes.some((athlete) => athlete.idAdminOwner !== requesterId);
+        if (outOfScope) {
+          await t.rollback();
+          return res.status(403).json({ message: 'Solo puedes asignar atletas de tu gym.' });
+        }
+      }
+
+      if (requesterRole === ROLE_COACH) {
         const outOfScope = athletes.some((athlete) => athlete.idAdminOwner !== req.authUser.idAdminOwner);
         if (outOfScope) {
           await t.rollback();
@@ -588,9 +613,12 @@ module.exports = {
         return res.status(400).json({ message: 'La rutina no pertenece a un coach o gym valido.' });
       }
 
-      if (requesterRole === ROLE_GYM && routine.idUser !== requesterId) {
-        await t.rollback();
-        return res.status(403).json({ message: 'Solo puedes desasignar tus propias rutinas.' });
+      if (requesterRole === ROLE_GYM) {
+        const allowedCreatorIds = await getGymRoutineCreatorIds(requesterId, { transaction: t });
+        if (!allowedCreatorIds.includes(Number(routine.idUser))) {
+          await t.rollback();
+          return res.status(403).json({ message: 'Solo puedes desasignar rutinas propias o de tus coaches.' });
+        }
       }
 
       if (requesterRole === ROLE_COACH) {
@@ -640,12 +668,21 @@ module.exports = {
       if (idRoutine !== undefined) where.idRoutine = idRoutine;
       if (idAthlete !== undefined) where.idAthlete = idAthlete;
 
-      if (requesterRole === ROLE_COACH || requesterRole === ROLE_GYM) {
+      if (requesterRole === ROLE_COACH) {
         const ownRoutines = await Routine.findAll({
           where: { idUser: requesterId },
           attributes: ['id'],
         });
         where.idRoutine = { [Op.in]: ownRoutines.map((routine) => routine.id).concat([-1]) };
+      }
+
+      if (requesterRole === ROLE_GYM) {
+        const allowedCreatorIds = await getGymRoutineCreatorIds(requesterId);
+        const gymRoutines = await Routine.findAll({
+          where: { idUser: { [Op.in]: allowedCreatorIds.length > 0 ? allowedCreatorIds : [-1] } },
+          attributes: ['id'],
+        });
+        where.idRoutine = { [Op.in]: gymRoutines.map((routine) => routine.id).concat([-1]) };
       }
 
       if (requesterRole === ROLE_ADMIN) {
@@ -703,8 +740,14 @@ module.exports = {
       if (!coach || !isRoutineCreatorRole(coach.idRole)) {
         return res.status(400).json({ message: 'La rutina no pertenece a un coach o gym valido.' });
       }
-      if ((requesterRole === ROLE_COACH || requesterRole === ROLE_GYM) && routine.idUser !== requesterId) {
+      if (requesterRole === ROLE_COACH && routine.idUser !== requesterId) {
         return res.status(403).json({ message: 'No puedes consultar rutinas de otros usuarios.' });
+      }
+      if (requesterRole === ROLE_GYM) {
+        const allowedCreatorIds = await getGymRoutineCreatorIds(requesterId);
+        if (!allowedCreatorIds.includes(Number(routine.idUser))) {
+          return res.status(403).json({ message: 'No puedes consultar rutinas fuera de tu gym.' });
+        }
       }
       if (requesterRole === ROLE_ADMIN && coach.idAdminOwner !== requesterId) {
         return res.status(403).json({ message: 'No puedes consultar rutinas de otro administrador.' });
