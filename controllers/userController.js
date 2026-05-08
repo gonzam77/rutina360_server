@@ -109,6 +109,13 @@ function buildAuthResponse(user) {
   };
 }
 
+const roleInclude = { model: Rol, attributes: ['id', 'name'] };
+const adminOwnerInclude = {
+  model: User,
+  as: 'adminOwner',
+  attributes: ['id', 'username', 'email', 'idRole'],
+};
+
 function getUsersScopeWhereByAuthUser(authUser) {
   if (!authUser?.id || !authUser?.idRole) return {};
 
@@ -194,7 +201,7 @@ module.exports = {
       }
       const users = await User.findAll({
         where,
-        include: [{ model: Rol, attributes: ['id', 'name'] }],
+        include: [roleInclude, adminOwnerInclude],
       });
 
       return res.status(200).json({ data: users });
@@ -215,7 +222,7 @@ module.exports = {
 
       const user = await User.findOne({
         where: { username: login, isActive: true, isDeleted: false },
-        include: [{ model: Rol, attributes: ['id', 'name'] }],
+        include: [roleInclude, adminOwnerInclude],
       });
 
       if (!user) {
@@ -239,7 +246,7 @@ module.exports = {
       const userId = req.authUser?.id;
       const user = await User.findByPk(userId, {
         attributes: { exclude: ['password'] },
-        include: [{ model: Rol, attributes: ['id', 'name'] }],
+        include: [roleInclude, adminOwnerInclude],
       });
 
       if (!user || user.isDeleted || !user.isActive) {
@@ -258,7 +265,7 @@ module.exports = {
       const { id } = req.params;
       const user = await User.findByPk(id, {
         // attributes: { exclude: ['password'] },
-        include: [{ model: Rol, attributes: ['id', 'name'] }],
+        include: [roleInclude, adminOwnerInclude],
       });
 
       if (!user) {
