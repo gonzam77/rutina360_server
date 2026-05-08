@@ -6,9 +6,10 @@ const { Op } = require('sequelize');
 const JWT_SECRET = process.env.JWT_SECRET || 'dev_jwt_secret_change_me';
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '8h';
 const ROLE_SUPER_ADMIN = 1;
-const ROLE_ADMIN = 2;
+const ROLE_GYM = 2;
 const ROLE_COACH = 3;
 const ROLE_ATHLETE = 4;
+const ROLE_ADMIN = 5;
 
 function getErrorStatus(error) {
   const sequelizeErrorNames = [
