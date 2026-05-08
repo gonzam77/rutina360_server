@@ -5,6 +5,7 @@ const { Op } = require('sequelize');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dev_jwt_secret_change_me';
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '8h';
+
 const ROLE_SUPER_ADMIN = 1;
 const ROLE_GYM = 2;
 const ROLE_COACH = 3;
@@ -18,7 +19,7 @@ function getErrorStatus(error) {
     'SequelizeForeignKeyConstraintError',
   ];
   return sequelizeErrorNames.includes(error?.name) ? 400 : 500;
-};
+}
 
 function getErrorMessage(error) {
   if (Array.isArray(error?.errors) && error.errors.length > 0) {
@@ -78,7 +79,6 @@ function normalizeUserPayload(payload = {}) {
 
 async function checkPassword(user, password) {
   if (!user?.password || !password) return false;
-
   try {
     return await bcrypt.compare(password, user.password);
   } catch (_error) {
@@ -123,13 +123,11 @@ function getUsersScopeWhereByAuthUser(authUser) {
     return {};
   }
 
-  if (authUser.idRole === ROLE_ADMIN) {
+  // Gym y Admin comparten alcance de owner
+  if (authUser.idRole === ROLE_GYM || authUser.idRole === ROLE_ADMIN) {
     return {
       isDeleted: false,
-      [Op.or]: [
-        { id: authUser.id },
-        { idAdminOwner: authUser.id },
-      ],
+      [Op.or]: [{ id: authUser.id }, { idAdminOwner: authUser.id }],
     };
   }
 
@@ -151,21 +149,22 @@ function getUsersScopeWhereByAuthUser(authUser) {
 
 function resolveAdminOwnerForCreate(payload, authUser) {
   const payloadRole = Number(payload.idRole);
-  const payloadAdminOwner = payload.idAdminOwner !== undefined && payload.idAdminOwner !== null
-    ? Number(payload.idAdminOwner)
-    : null;
+  const payloadAdminOwner =
+    payload.idAdminOwner !== undefined && payload.idAdminOwner !== null
+      ? Number(payload.idAdminOwner)
+      : null;
 
   if (payloadRole === ROLE_SUPER_ADMIN) {
     return null;
   }
 
-  if (payloadRole === ROLE_ADMIN) {
+  if (payloadRole === ROLE_GYM || payloadRole === ROLE_ADMIN) {
     if (authUser?.idRole === ROLE_SUPER_ADMIN && payloadAdminOwner) return payloadAdminOwner;
     return null;
   }
 
   if (payloadRole === ROLE_COACH || payloadRole === ROLE_ATHLETE) {
-    if (authUser?.idRole === ROLE_ADMIN) return authUser.id;
+    if (authUser?.idRole === ROLE_GYM || authUser?.idRole === ROLE_ADMIN) return authUser.id;
     if (authUser?.idRole === ROLE_COACH) return authUser.idAdminOwner || null;
     if (authUser?.idRole === ROLE_SUPER_ADMIN && payloadAdminOwner) return payloadAdminOwner;
     return payloadAdminOwner;
@@ -196,9 +195,11 @@ module.exports = {
     try {
       const { idRole } = req.query;
       const where = getUsersScopeWhereByAuthUser(req.authUser);
+
       if (idRole !== undefined && idRole !== null && idRole !== '') {
         where.idRole = Number(idRole);
       }
+
       const users = await User.findAll({
         where,
         include: [roleInclude, adminOwnerInclude],
@@ -217,7 +218,7 @@ module.exports = {
       const login = (username || name || '').trim().toUpperCase();
 
       if (!login || !password) {
-        return res.status(400).json({ message: 'Usuario y contrase\u00f1a son obligatorios.' });
+        return res.status(400).json({ message: 'Usuario y contraseña son obligatorios.' });
       }
 
       const user = await User.findOne({
@@ -226,12 +227,12 @@ module.exports = {
       });
 
       if (!user) {
-        return res.status(401).json({ message: 'Credenciales inv\u00e1lidas.' });
+        return res.status(401).json({ message: 'Credenciales inválidas.' });
       }
 
       const isValidPassword = await checkPassword(user, password);
       if (!isValidPassword) {
-        return res.status(401).json({ message: 'Credenciales inv\u00e1lidas.' });
+        return res.status(401).json({ message: 'Credenciales inválidas.' });
       }
 
       return res.status(200).json({ data: buildAuthResponse(user) });
@@ -264,7 +265,6 @@ module.exports = {
     try {
       const { id } = req.params;
       const user = await User.findByPk(id, {
-        // attributes: { exclude: ['password'] },
         include: [roleInclude, adminOwnerInclude],
       });
 
@@ -272,9 +272,9 @@ module.exports = {
         return res.status(404).json({ message: 'Usuario no encontrado.' });
       }
 
-      if (req.authUser?.idRole === ROLE_ADMIN) {
+      if (req.authUser?.idRole === ROLE_GYM || req.authUser?.idRole === ROLE_ADMIN) {
         if (user.id !== req.authUser.id && user.idAdminOwner !== req.authUser.id) {
-          return res.status(403).json({ message: 'No puedes acceder a usuarios de otro administrador.' });
+          return res.status(403).json({ message: 'No puedes acceder a usuarios de otro owner.' });
         }
       }
 
@@ -297,8 +297,8 @@ module.exports = {
       const requesterRole = Number(req.authUser?.idRole);
       const targetRole = Number(normalizedPayload.idRole);
 
-      if (requesterRole === ROLE_ADMIN && ![ROLE_COACH, ROLE_ATHLETE].includes(targetRole)) {
-        return res.status(403).json({ message: 'Como administrador solo puedes crear coach o atletas.' });
+      if ((requesterRole === ROLE_GYM || requesterRole === ROLE_ADMIN) && ![ROLE_COACH, ROLE_ATHLETE].includes(targetRole)) {
+        return res.status(403).json({ message: 'Como gym/admin solo puedes crear coach o atletas.' });
       }
 
       if (requesterRole === ROLE_COACH && targetRole !== ROLE_ATHLETE) {
@@ -308,18 +308,18 @@ module.exports = {
       normalizedPayload.idAdminOwner = resolveAdminOwnerForCreate(normalizedPayload, req.authUser);
 
       if (
-        (Number(normalizedPayload.idRole) === ROLE_COACH || Number(normalizedPayload.idRole) === ROLE_ATHLETE) &&
+        (targetRole === ROLE_COACH || targetRole === ROLE_ATHLETE) &&
         !normalizedPayload.idAdminOwner
       ) {
         return res.status(400).json({
-          message: 'Para crear coach o atleta debes indicar un administrador (idAdminOwner) o autenticarte como administrador.',
+          message: 'Para crear coach o atleta debes indicar idAdminOwner o autenticarte como gym/admin.',
         });
       }
 
       const payloadWithHashedPassword = await hashPasswordIfPresent(normalizedPayload);
       const user = await User.create(payloadWithHashedPassword);
 
-      if (Number(user.idRole) === ROLE_ADMIN && !user.idAdminOwner) {
+      if ((Number(user.idRole) === ROLE_GYM || Number(user.idRole) === ROLE_ADMIN) && !user.idAdminOwner) {
         await user.update({ idAdminOwner: user.id });
       }
 
@@ -337,7 +337,7 @@ module.exports = {
       const user = await User.findByPk(id);
       if (!user) return res.status(404).json({ message: 'Usuario no encontrado.' });
 
-      if (req.authUser?.idRole === ROLE_ADMIN) {
+      if (req.authUser?.idRole === ROLE_GYM || req.authUser?.idRole === ROLE_ADMIN) {
         if (![ROLE_COACH, ROLE_ATHLETE].includes(Number(user.idRole)) || user.idAdminOwner !== req.authUser.id) {
           return res.status(403).json({ message: 'Solo puedes editar coach/atletas de tu grupo.' });
         }
@@ -352,10 +352,8 @@ module.exports = {
       const normalizedPayload = normalizeUserPayload(req.body);
       const payloadWithHashedPassword = await hashPasswordIfPresent(normalizedPayload);
       await user.update(payloadWithHashedPassword);
-      const updatedUser = await User.findByPk(
-        id, 
-        // { attributes: { exclude: ['password'] } }
-      );
+
+      const updatedUser = await User.findByPk(id);
       return res.status(200).json({ data: updatedUser });
     } catch (error) {
       return res.status(getErrorStatus(error)).json({ message: getErrorMessage(error) });
@@ -364,8 +362,8 @@ module.exports = {
 
   async getCoachAthletes(req, res) {
     try {
-      if (![ROLE_SUPER_ADMIN, ROLE_ADMIN, ROLE_COACH].includes(Number(req.authUser?.idRole))) {
-        return res.status(403).json({ message: 'No tienes permisos para ver vinculos coach-atleta.' });
+      if (![ROLE_SUPER_ADMIN, ROLE_GYM, ROLE_ADMIN, ROLE_COACH].includes(Number(req.authUser?.idRole))) {
+        return res.status(403).json({ message: 'No tienes permisos para ver vínculos coach-atleta.' });
       }
 
       const { idCoach, idAthlete } = req.query;
@@ -376,10 +374,11 @@ module.exports = {
       const includeCoach = { model: User, as: 'coach' };
       const includeAthlete = { model: User, as: 'athlete' };
 
-      if (req.authUser?.idRole === ROLE_ADMIN) {
+      if (req.authUser?.idRole === ROLE_GYM || req.authUser?.idRole === ROLE_ADMIN) {
         includeCoach.where = { idAdminOwner: req.authUser.id };
         includeAthlete.where = { idAdminOwner: req.authUser.id };
       }
+
       if (req.authUser?.idRole === ROLE_COACH) {
         where.idCoach = req.authUser.id;
         includeAthlete.where = { idAdminOwner: req.authUser.idAdminOwner };
@@ -387,10 +386,7 @@ module.exports = {
 
       const relations = await CoachAthlete.findAll({
         where,
-        include: [
-          includeCoach,
-          includeAthlete,
-        ],
+        include: [includeCoach, includeAthlete],
       });
 
       return res.status(200).json({ data: relations });
@@ -402,15 +398,12 @@ module.exports = {
 
   async linkAthleteToCoach(req, res) {
     try {
-      if (![ROLE_SUPER_ADMIN, ROLE_ADMIN, ROLE_COACH].includes(Number(req.authUser?.idRole))) {
+      if (![ROLE_SUPER_ADMIN, ROLE_GYM, ROLE_ADMIN, ROLE_COACH].includes(Number(req.authUser?.idRole))) {
         return res.status(403).json({ message: 'No tienes permisos para vincular atleta-coach.' });
       }
 
       const { idCoach, idAthlete } = req.body;
-      const [coach, athlete] = await Promise.all([
-        User.findByPk(idCoach),
-        User.findByPk(idAthlete),
-      ]);
+      const [coach, athlete] = await Promise.all([User.findByPk(idCoach), User.findByPk(idAthlete)]);
 
       if (!coach || !athlete) {
         return res.status(404).json({ message: 'Coach o atleta no encontrado.' });
@@ -421,11 +414,11 @@ module.exports = {
       }
 
       if (!coach.idAdminOwner || !athlete.idAdminOwner || coach.idAdminOwner !== athlete.idAdminOwner) {
-        return res.status(400).json({ message: 'Coach y atleta deben pertenecer al mismo administrador.' });
+        return res.status(400).json({ message: 'Coach y atleta deben pertenecer al mismo owner.' });
       }
 
-      if (req.authUser?.idRole === ROLE_ADMIN && coach.idAdminOwner !== req.authUser.id) {
-        return res.status(403).json({ message: 'No puedes vincular usuarios de otro administrador.' });
+      if ((req.authUser?.idRole === ROLE_GYM || req.authUser?.idRole === ROLE_ADMIN) && coach.idAdminOwner !== req.authUser.id) {
+        return res.status(403).json({ message: 'No puedes vincular usuarios de otro owner.' });
       }
 
       if (req.authUser?.idRole === ROLE_COACH) {
@@ -438,7 +431,7 @@ module.exports = {
       }
 
       const relation = await CoachAthlete.create({ idCoach, idAthlete });
-      return res.status(201).json({ message: 'Atleta vinculado con \u00e9xito.', data: relation });
+      return res.status(201).json({ message: 'Atleta vinculado con éxito.', data: relation });
     } catch (error) {
       console.error('Error linkAthleteToCoach:', error);
       return res.status(getErrorStatus(error)).json({ message: getErrorMessage(error) });
@@ -447,7 +440,7 @@ module.exports = {
 
   async unlinkAthleteFromCoach(req, res) {
     try {
-      if (![ROLE_SUPER_ADMIN, ROLE_ADMIN, ROLE_COACH].includes(Number(req.authUser?.idRole))) {
+      if (![ROLE_SUPER_ADMIN, ROLE_GYM, ROLE_ADMIN, ROLE_COACH].includes(Number(req.authUser?.idRole))) {
         return res.status(403).json({ message: 'No tienes permisos para desvincular atleta-coach.' });
       }
 
@@ -457,8 +450,15 @@ module.exports = {
         return res.status(403).json({ message: 'Como coach solo puedes desvincular atletas de tu propio perfil.' });
       }
 
+      if ((req.authUser?.idRole === ROLE_GYM || req.authUser?.idRole === ROLE_ADMIN)) {
+        const [coach, athlete] = await Promise.all([User.findByPk(idCoach), User.findByPk(idAthlete)]);
+        if (!coach || !athlete || coach.idAdminOwner !== req.authUser.id || athlete.idAdminOwner !== req.authUser.id) {
+          return res.status(403).json({ message: 'No puedes desvincular usuarios de otro owner.' });
+        }
+      }
+
       await CoachAthlete.destroy({ where: { idCoach, idAthlete } });
-      return res.status(200).json({ message: 'V\u00ednculo eliminado.' });
+      return res.status(200).json({ message: 'Vínculo eliminado.' });
     } catch (error) {
       return res.status(500).json({ message: 'Error al desvincular.' });
     }
@@ -469,16 +469,16 @@ module.exports = {
       const { id } = req.params;
       const user = await User.findOne({
         where: {
-          id: id,
-          isDeleted: false
-        }
+          id,
+          isDeleted: false,
+        },
       });
 
       if (!user) {
         return res.status(404).json({ message: 'Usuario no encontrado.' });
-
       }
-      if (req.authUser?.idRole === ROLE_ADMIN) {
+
+      if (req.authUser?.idRole === ROLE_GYM || req.authUser?.idRole === ROLE_ADMIN) {
         const targetRole = Number(user.idRole);
         if (![ROLE_COACH, ROLE_ATHLETE].includes(targetRole) || user.idAdminOwner !== req.authUser.id) {
           return res.status(403).json({ message: 'Solo puedes eliminar coach/atletas de tu grupo.' });
@@ -489,14 +489,13 @@ module.exports = {
         return res.status(403).json({ message: 'Como coach no puedes eliminar usuarios.' });
       }
 
-      await user.update({ isDeleted: true });
-      await user.update({ isActive: false });
-      // await user.destroy();
+      await user.update({ isDeleted: true, isActive: false });
       return res.status(200).json({ message: 'Usuario eliminado.' });
     } catch (error) {
       return res.status(getErrorStatus(error)).json({ message: getErrorMessage(error) });
     }
   },
+
   async permanentlyDeleteUser(req, res) {
     try {
       if (Number(req.authUser?.idRole) !== ROLE_SUPER_ADMIN) {
@@ -504,7 +503,6 @@ module.exports = {
       }
 
       const { id } = req.params;
-
       const user = await User.findByPk(id);
 
       if (!user) {
@@ -512,13 +510,9 @@ module.exports = {
       }
 
       await user.destroy();
-
       return res.status(200).json({ message: 'Usuario eliminado permanentemente.' });
-
     } catch (error) {
-      return res
-        .status(getErrorStatus(error))
-        .json({ message: getErrorMessage(error) });
+      return res.status(getErrorStatus(error)).json({ message: getErrorMessage(error) });
     }
-  }
+  },
 };
