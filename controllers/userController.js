@@ -87,6 +87,9 @@ async function checkPassword(user, password) {
 }
 
 function buildAuthResponse(user) {
+  const userData = user.toJSON();
+  delete userData.password;
+
   const payload = {
     id: user.id,
     username: user.username,
@@ -98,15 +101,7 @@ function buildAuthResponse(user) {
 
   return {
     token,
-    user: {
-      id: user.id,
-      username: user.username,
-      email: user.email,
-      idRole: user.idRole,
-      idAdminOwner: user.idAdminOwner,
-      Rol: user.Rol,
-      adminOwner: user.adminOwner,
-    },
+    user: userData,
   };
 }
 
