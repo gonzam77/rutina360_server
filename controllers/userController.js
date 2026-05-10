@@ -105,6 +105,7 @@ function buildAuthResponse(user) {
       idRole: user.idRole,
       idAdminOwner: user.idAdminOwner,
       Rol: user.Rol,
+      adminOwner: user.adminOwner,
     },
   };
 }
