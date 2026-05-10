@@ -11,6 +11,18 @@ const ROLE_GYM = 2;
 const ROLE_COACH = 3;
 const ROLE_ATHLETE = 4;
 const ROLE_ADMIN = 5;
+const ATHLETE_PROFILE_FIELDS = [
+  'username',
+  'email',
+  'birthDate',
+  'gender',
+  'phone',
+  'height',
+  'weight',
+  'address',
+  'goal',
+  'weeklyAvailability',
+];
 
 function getErrorStatus(error) {
   const sequelizeErrorNames = [
@@ -75,6 +87,15 @@ function normalizeUserPayload(payload = {}) {
   }
 
   return normalized;
+}
+
+function pickFields(source, fields) {
+  return fields.reduce((payload, field) => {
+    if (Object.prototype.hasOwnProperty.call(source, field)) {
+      payload[field] = source[field];
+    }
+    return payload;
+  }, {});
 }
 
 async function checkPassword(user, password) {
@@ -333,13 +354,37 @@ module.exports = {
       const user = await User.findByPk(id);
       if (!user) return res.status(404).json({ message: 'Usuario no encontrado.' });
 
-      if (req.authUser?.idRole === ROLE_GYM || req.authUser?.idRole === ROLE_ADMIN) {
+      const requesterRole = Number(req.authUser?.idRole);
+      const requesterId = Number(req.authUser?.id);
+
+      if (requesterRole === ROLE_ATHLETE) {
+        if (Number(id) !== requesterId || Number(user.idRole) !== ROLE_ATHLETE) {
+          return res.status(403).json({ message: 'Como atleta solo puedes editar tus propios datos personales.' });
+        }
+
+        const normalizedPayload = normalizeUserPayload(req.body);
+        const profilePayload = pickFields(normalizedPayload, ATHLETE_PROFILE_FIELDS);
+
+        if (Object.keys(profilePayload).length === 0) {
+          return res.status(400).json({ message: 'No enviaste campos personales editables.' });
+        }
+
+        await user.update(profilePayload);
+
+        const updatedUser = await User.findByPk(id, {
+          attributes: { exclude: ['password'] },
+          include: [roleInclude, adminOwnerInclude],
+        });
+        return res.status(200).json({ data: updatedUser });
+      }
+
+      if (requesterRole === ROLE_GYM || requesterRole === ROLE_ADMIN) {
         if (![ROLE_COACH, ROLE_ATHLETE].includes(Number(user.idRole)) || user.idAdminOwner !== req.authUser.id) {
           return res.status(403).json({ message: 'Solo puedes editar coach/atletas de tu grupo.' });
         }
       }
 
-      if (req.authUser?.idRole === ROLE_COACH) {
+      if (requesterRole === ROLE_COACH) {
         if (Number(user.idRole) !== ROLE_ATHLETE || user.idAdminOwner !== req.authUser.idAdminOwner) {
           return res.status(403).json({ message: 'Solo puedes editar atletas de tu grupo.' });
         }
