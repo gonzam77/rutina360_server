@@ -11,7 +11,7 @@ router.delete('/:id', authenticateJWT, authorizeRoles(2, 3), routineController.d
 router.post('/assign', authenticateJWT, authorizeRoles(2, 3), routineController.assignRoutine); // Asignar rutina a atleta
 router.get('/assign', authenticateJWT, authorizeRoles(2, 3), routineController.getActiveAssignments); // Traer rutinas activas
 router.get('/assign/routine/:idRoutine', authenticateJWT, authorizeRoles(2, 3), routineController.getActiveAssignmentsByRoutine); //Traer rutinas por idRutina
-router.get('/assign/athlete/:idAthlete', authenticateJWT, authorizeRoles(2, 3), routineController.getActiveAssignmentsByAthlete); //Traer rutinas por Atleta
+router.get('/assign/athlete/:idAthlete', authenticateJWT, authorizeRoles(2, 3, 4), routineController.getActiveAssignmentsByAthlete); //Traer rutinas por Atleta
 router.patch('/assign', authenticateJWT, authorizeRoles(2, 3), routineController.unassignRoutine); // Desasignar rutina a atleta
 
 module.exports = router;

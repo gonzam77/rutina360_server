@@ -772,10 +772,16 @@ module.exports = {
       if (!athlete || Number(athlete.idRole) !== ROLE_ATHLETE) {
         return res.status(404).json({ message: 'Atleta no encontrado.' });
       }
-      if (requesterRole === ROLE_COACH && athlete.idAdminOwner !== req.authUser.idAdminOwner) {
+      if (requesterRole === ROLE_ATHLETE && Number(idAthlete) !== requesterId) {
+        return res.status(403).json({ message: 'Solo puedes consultar tus propias rutinas asignadas.' });
+      }
+      if (requesterRole === ROLE_GYM && Number(athlete.idAdminOwner) !== requesterId) {
+        return res.status(403).json({ message: 'No puedes consultar atletas de otro gym.' });
+      }
+      if (requesterRole === ROLE_COACH && Number(athlete.idAdminOwner) !== Number(req.authUser.idAdminOwner)) {
         return res.status(403).json({ message: 'No puedes consultar atletas de otro grupo.' });
       }
-      if (requesterRole === ROLE_ADMIN && athlete.idAdminOwner !== requesterId) {
+      if (requesterRole === ROLE_ADMIN && Number(athlete.idAdminOwner) !== requesterId) {
         return res.status(403).json({ message: 'No puedes consultar atletas de otro administrador.' });
       }
       const assignments = await RoutineAthlete.findAll({
