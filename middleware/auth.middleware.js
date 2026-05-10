@@ -6,18 +6,25 @@ const ROLE_SUPER_ADMIN = 1;
 function authenticateJWT(req, res, next) {
   const authHeader = req.headers.authorization;
 
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+  if (!authHeader) {
     return res.status(401).json({ message: 'Token no provisto.' });
   }
 
-  const token = authHeader.split(' ')[1];
+  const [scheme, token] = authHeader.split(/\s+/);
+
+  if (scheme?.toLowerCase() !== 'bearer' || !token) {
+    return res.status(401).json({ message: 'Token no provisto.' });
+  }
 
   try {
     const payload = jwt.verify(token, JWT_SECRET);
     req.authUser = payload;
     return next();
   } catch (error) {
-    return res.status(401).json({ message: 'Token inv\u00e1lido o expirado.' });
+    if (error.name === 'TokenExpiredError') {
+      return res.status(401).json({ message: 'Token expirado.' });
+    }
+    return res.status(401).json({ message: 'Token invalido.' });
   }
 }
 
