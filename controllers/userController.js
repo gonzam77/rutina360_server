@@ -363,7 +363,7 @@ module.exports = {
 
   async getCoachAthletes(req, res) {
     try {
-      if (![ROLE_SUPER_ADMIN, ROLE_GYM, ROLE_ADMIN, ROLE_COACH].includes(Number(req.authUser?.idRole))) {
+      if (![ROLE_SUPER_ADMIN, ROLE_GYM, ROLE_ADMIN, ROLE_COACH, ROLE_ATHLETE].includes(Number(req.authUser?.idRole))) {
         return res.status(403).json({ message: 'No tienes permisos para ver vínculos coach-atleta.' });
       }
 
@@ -383,6 +383,13 @@ module.exports = {
       if (req.authUser?.idRole === ROLE_COACH) {
         where.idCoach = req.authUser.id;
         includeAthlete.where = { idAdminOwner: req.authUser.idAdminOwner };
+      }
+
+      if (req.authUser?.idRole === ROLE_ATHLETE) {
+        if (idAthlete && Number(idAthlete) !== Number(req.authUser.id)) {
+          return res.status(403).json({ message: 'Como atleta solo puedes consultar tus propios vinculos.' });
+        }
+        where.idAthlete = req.authUser.id;
       }
 
       const relations = await CoachAthlete.findAll({
