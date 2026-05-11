@@ -23,6 +23,7 @@ const ATHLETE_PROFILE_FIELDS = [
   'goal',
   'weeklyAvailability',
 ];
+const SELF_PROFILE_FIELDS = [...ATHLETE_PROFILE_FIELDS, 'password'];
 
 function getErrorStatus(error) {
   const sequelizeErrorNames = [
@@ -379,8 +380,28 @@ module.exports = {
       }
 
       if (requesterRole === ROLE_GYM || requesterRole === ROLE_ADMIN) {
+        const isSelfEdit = Number(id) === requesterId;
+
+        if (requesterRole === ROLE_GYM && isSelfEdit) {
+          const normalizedPayload = normalizeUserPayload(req.body);
+          const selfPayload = pickFields(normalizedPayload, SELF_PROFILE_FIELDS);
+          const payloadWithHashedPassword = await hashPasswordIfPresent(selfPayload);
+
+          if (Object.keys(payloadWithHashedPassword).length === 0) {
+            return res.status(400).json({ message: 'No enviaste campos personales editables.' });
+          }
+
+          await user.update(payloadWithHashedPassword);
+
+          const updatedUser = await User.findByPk(id, {
+            attributes: { exclude: ['password'] },
+            include: [roleInclude, adminOwnerInclude],
+          });
+          return res.status(200).json({ data: updatedUser });
+        }
+
         if (![ROLE_COACH, ROLE_ATHLETE].includes(Number(user.idRole)) || user.idAdminOwner !== req.authUser.id) {
-          return res.status(403).json({ message: 'Solo puedes editar coach/atletas de tu grupo.' });
+          return res.status(403).json({ message: 'Solo puedes editar tus datos o coach/atletas de tu grupo.' });
         }
       }
 
