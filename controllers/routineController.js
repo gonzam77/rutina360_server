@@ -80,8 +80,11 @@ module.exports = {
 
       if (requesterRole === ROLE_COACH) {
         const gymOwnerId = Number(req.authUser?.idAdminOwner);
+        const allowedCreatorIds = gymOwnerId
+          ? await getGymRoutineCreatorIds(gymOwnerId)
+          : [requesterId];
         where.idUser = {
-          [Op.in]: [requesterId, ...(gymOwnerId ? [gymOwnerId] : [])],
+          [Op.in]: allowedCreatorIds.length > 0 ? allowedCreatorIds : [requesterId],
         };
       }
 
@@ -669,8 +672,12 @@ module.exports = {
       if (idAthlete !== undefined) where.idAthlete = idAthlete;
 
       if (requesterRole === ROLE_COACH) {
+        const gymOwnerId = Number(req.authUser?.idAdminOwner);
+        const allowedCreatorIds = gymOwnerId
+          ? await getGymRoutineCreatorIds(gymOwnerId)
+          : [requesterId];
         const ownRoutines = await Routine.findAll({
-          where: { idUser: requesterId },
+          where: { idUser: { [Op.in]: allowedCreatorIds.length > 0 ? allowedCreatorIds : [requesterId] } },
           attributes: ['id'],
         });
         where.idRoutine = { [Op.in]: ownRoutines.map((routine) => routine.id).concat([-1]) };
@@ -740,8 +747,14 @@ module.exports = {
       if (!coach || !isRoutineCreatorRole(coach.idRole)) {
         return res.status(400).json({ message: 'La rutina no pertenece a un coach o gym valido.' });
       }
-      if (requesterRole === ROLE_COACH && routine.idUser !== requesterId) {
-        return res.status(403).json({ message: 'No puedes consultar rutinas de otros usuarios.' });
+      if (requesterRole === ROLE_COACH) {
+        const gymOwnerId = Number(req.authUser?.idAdminOwner);
+        const allowedCreatorIds = gymOwnerId
+          ? await getGymRoutineCreatorIds(gymOwnerId)
+          : [requesterId];
+        if (!allowedCreatorIds.includes(Number(routine.idUser))) {
+          return res.status(403).json({ message: 'No puedes consultar rutinas fuera de tu gym.' });
+        }
       }
       if (requesterRole === ROLE_GYM) {
         const allowedCreatorIds = await getGymRoutineCreatorIds(requesterId);
