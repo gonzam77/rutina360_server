@@ -11,6 +11,7 @@ const ROLE_GYM = 2;
 const ROLE_COACH = 3;
 const ROLE_ATHLETE = 4;
 const ROLE_ADMIN = 5;
+const ROLES_WITH_REQUIRED_DNI = [ROLE_COACH, ROLE_ATHLETE];
 const ATHLETE_PROFILE_FIELDS = [
   'username',
   'email',
@@ -220,6 +221,26 @@ async function hashPasswordIfPresent(payload = {}) {
   };
 }
 
+function isDniRequiredByRole(roleId) {
+  return ROLES_WITH_REQUIRED_DNI.includes(Number(roleId));
+}
+
+function validateDniByRole(payload, roleId) {
+  const normalizedRole = Number(roleId);
+  const hasDniField = Object.prototype.hasOwnProperty.call(payload, 'dni');
+  const normalizedDni = hasDniField ? toNullableInteger(payload.dni) : undefined;
+
+  if (isDniRequiredByRole(normalizedRole) && !normalizedDni) {
+    return 'El DNI es obligatorio para coach y atleta.';
+  }
+
+  if (!isDniRequiredByRole(normalizedRole) && hasDniField && normalizedDni) {
+    return 'Solo coach y atleta deben tener DNI.';
+  }
+
+  return null;
+}
+
 module.exports = {
   async getUsers(req, res) {
     try {
@@ -244,15 +265,15 @@ module.exports = {
 
   async getAuthUser(req, res) {
     try {
-      const { dni, password } = req.body;
-      const loginDni = toNullableInteger(dni);
+      const { email, password } = req.body;
+      const loginEmail = toNullableString(email)?.toLowerCase() || null;
 
-      if (!loginDni || !password) {
-        return res.status(400).json({ message: 'DNI y contrasena son obligatorios.' });
+      if (!loginEmail || !password) {
+        return res.status(400).json({ message: 'Email y contrasena son obligatorios.' });
       }
 
       const user = await User.findOne({
-        where: { dni: loginDni, isActive: true, isDeleted: false },
+        where: { email: loginEmail, isActive: true, isDeleted: false },
         include: [roleInclude, adminOwnerInclude],
       });
 
@@ -346,6 +367,11 @@ module.exports = {
         });
       }
 
+      const dniValidationError = validateDniByRole(normalizedPayload, targetRole);
+      if (dniValidationError) {
+        return res.status(400).json({ message: dniValidationError });
+      }
+
       const payloadWithHashedPassword = await hashPasswordIfPresent(normalizedPayload);
       const user = await User.create(payloadWithHashedPassword);
 
@@ -424,6 +450,13 @@ module.exports = {
       }
 
       const normalizedPayload = normalizeUserPayload(req.body);
+      const targetRoleAfterUpdate = Object.prototype.hasOwnProperty.call(normalizedPayload, 'idRole')
+        ? Number(normalizedPayload.idRole)
+        : Number(user.idRole);
+      const dniValidationError = validateDniByRole(normalizedPayload, targetRoleAfterUpdate);
+      if (dniValidationError) {
+        return res.status(400).json({ message: dniValidationError });
+      }
       const payloadWithHashedPassword = await hashPasswordIfPresent(normalizedPayload);
       await user.update(payloadWithHashedPassword);
 

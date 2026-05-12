@@ -12,13 +12,13 @@ module.exports = (sequelize, DataTypes) => {
     },
     dni:{
       type: DataTypes.INTEGER,
-      allowNull: false,
+      allowNull: true,
       unique: true
     },
     email: {
       type: DataTypes.STRING,
       allowNull: false,
-      unique: false
+      unique: true
     },
     password: {
       type: DataTypes.STRING,
