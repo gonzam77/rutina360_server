@@ -30,11 +30,13 @@ async function alignIdSequence(model) {
 }
 
 async function ensureSuperAdmin() {
-  const superAdminUser = (process.env.SUPERADMIN_USER || '').trim();
+  const superAdminUser = (process.env.SUPERADMIN_USER || 'SUPERADMIN').trim();
+  const superAdminDniRaw = (process.env.SUPERADMIN_DNI || '').trim();
   const superAdminPass = (process.env.SUPERADMIN_PASS || '').trim();
+  const superAdminDni = Number.parseInt(superAdminDniRaw, 10);
 
-  if (!superAdminUser || !superAdminPass) {
-    console.warn('>> SUPERADMIN_USER o SUPERADMIN_PASS no definidos en .env. No se creo superadmin.');
+  if (!superAdminDniRaw || Number.isNaN(superAdminDni) || !superAdminPass) {
+    console.warn('>> SUPERADMIN_DNI o SUPERADMIN_PASS no definidos/invalidos en .env. No se creo superadmin.');
     return;
   }
 
@@ -44,6 +46,7 @@ async function ensureSuperAdmin() {
   const superAdminPayload = {
     username: superAdminUser,
     email: defaultEmail,
+    dni: superAdminDni,
     password: hashedPassword,
     idRole: 1,
     idAdminOwner: null,
@@ -54,7 +57,7 @@ async function ensureSuperAdmin() {
     isDeleted: false,
   };
 
-  const existingSuperAdmin = await db.User.findOne({ where: { username: superAdminUser } });
+  const existingSuperAdmin = await db.User.findOne({ where: { dni: superAdminDni } });
 
   if (!existingSuperAdmin) {
     await db.User.create(superAdminPayload);

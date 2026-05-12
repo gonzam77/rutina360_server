@@ -57,6 +57,14 @@ function toNullableFloat(value) {
   return Number.isNaN(parsed) ? null : parsed;
 }
 
+function toNullableInteger(value) {
+  if (value === undefined || value === null || value === '') return null;
+  const normalized = String(value).trim();
+  if (!/^\d+$/.test(normalized)) return null;
+  const parsed = Number.parseInt(normalized, 10);
+  return Number.isNaN(parsed) ? null : parsed;
+}
+
 function normalizeUserPayload(payload = {}) {
   const normalized = { ...payload };
 
@@ -85,6 +93,9 @@ function normalizeUserPayload(payload = {}) {
   }
   if (Object.prototype.hasOwnProperty.call(payload, 'weight')) {
     normalized.weight = toNullableFloat(payload.weight);
+  }
+  if (Object.prototype.hasOwnProperty.call(payload, 'dni')) {
+    normalized.dni = toNullableInteger(payload.dni);
   }
 
   return normalized;
@@ -115,6 +126,7 @@ function buildAuthResponse(user) {
   const payload = {
     id: user.id,
     username: user.username,
+    dni: user.dni,
     idRole: user.idRole,
     idAdminOwner: user.idAdminOwner,
   };
@@ -232,15 +244,15 @@ module.exports = {
 
   async getAuthUser(req, res) {
     try {
-      const { username, name, password } = req.body;
-      const login = (username || name || '').trim().toUpperCase();
+      const { dni, password } = req.body;
+      const loginDni = toNullableInteger(dni);
 
-      if (!login || !password) {
-        return res.status(400).json({ message: 'Usuario y contraseña son obligatorios.' });
+      if (!loginDni || !password) {
+        return res.status(400).json({ message: 'DNI y contrasena son obligatorios.' });
       }
 
       const user = await User.findOne({
-        where: { username: login, isActive: true, isDeleted: false },
+        where: { dni: loginDni, isActive: true, isDeleted: false },
         include: [roleInclude, adminOwnerInclude],
       });
 
@@ -585,3 +597,4 @@ module.exports = {
     }
   },
 };
+
