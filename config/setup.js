@@ -42,6 +42,7 @@ async function ensureSuperAdmin() {
   const hashedPassword = await bcrypt.hash(superAdminPass, 10);
 
   const superAdminPayload = {
+    id: 1,
     username: superAdminUser,
     email: superAdminEmail,
     dni: null,

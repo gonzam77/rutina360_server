@@ -13,6 +13,10 @@ module.exports = (sequelize, DataTypes) => {
     idMuscleGroup: {
       type: DataTypes.INTEGER,
       allowNull: false
+    },
+    idOwner: {
+      type: DataTypes.INTEGER,
+      allowNull: false
     }
   });
 
