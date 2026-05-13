@@ -481,15 +481,15 @@ module.exports = {
       const includeCoach = { model: User, as: 'coach' };
       const includeAthlete = { model: User, as: 'athlete' };
 
-      if (req.authUser?.idRole === ROLE_GYM || req.authUser?.idRole === ROLE_ADMIN || req.authUser?.idRole === ROLE_COACH) {
+      if (req.authUser?.idRole === ROLE_GYM || req.authUser?.idRole === ROLE_ADMIN) {
         includeCoach.where = { idAdminOwner: req.authUser.id };
         includeAthlete.where = { idAdminOwner: req.authUser.id };
       }
 
-      // if (req.authUser?.idRole === ROLE_COACH) {
-      //   where.idCoach = req.authUser.id;
-      //   includeAthlete.where = { idAdminOwner: req.authUser.idAdminOwner };
-      // }
+      if (req.authUser?.idRole === ROLE_COACH) {
+        // where.idCoach = req.authUser.id;
+        includeAthlete.where = { idAdminOwner: req.authUser.idAdminOwner };
+      }
 
       if (req.authUser?.idRole === ROLE_ATHLETE) {
         if (idAthlete && Number(idAthlete) !== Number(req.authUser.id)) {
