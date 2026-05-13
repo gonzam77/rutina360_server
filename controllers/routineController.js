@@ -491,12 +491,14 @@ module.exports = {
 
       if (requesterRole === ROLE_COACH) {
         const gymOwnerId = Number(req.authUser?.idAdminOwner);
-        const canUseRoutine =
-          routine.idUser === requesterId || (gymOwnerId && routine.idUser === gymOwnerId);
+        const allowedCreatorIds = gymOwnerId
+          ? await getGymRoutineCreatorIds(gymOwnerId, { transaction: t })
+          : [requesterId];
+        const canUseRoutine = allowedCreatorIds.includes(Number(routine.idUser));
 
         if (!canUseRoutine) {
           await t.rollback();
-          return res.status(403).json({ message: 'Solo puedes asignar rutinas tuyas o de tu gym.' });
+          return res.status(403).json({ message: 'Solo puedes asignar rutinas de tu gym.' });
         }
       }
 
