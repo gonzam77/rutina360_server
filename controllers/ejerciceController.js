@@ -16,6 +16,9 @@ function getErrorMessage(error) {
   if (Array.isArray(error?.errors) && error.errors.length > 0) {
     return error.errors.map((e) => e.message).join(', ');
   }
+  if (error?.message) {
+    return error.message;
+  }
   return 'Error interno.';
 }
 
