@@ -645,18 +645,15 @@ module.exports = {
         return res.status(403).json({ message: 'Solo puedes desasignar rutinas de coachs de tu grupo.' });
       }
 
-      const [updatedCount] = await RoutineAthlete.update(
-        { isActive: false, isDeleted: true },
-        {
-          where: { idRoutine, idAthlete: athleteIds },
-          transaction: t,
-        }
-      );
+      const deletedCount = await RoutineAthlete.destroy({
+        where: { idRoutine, idAthlete: athleteIds },
+        transaction: t,
+      });
 
       await t.commit();
       return res.status(200).json({
-        message: 'Relacion rutina-atleta eliminada logicamente.',
-        data: { updatedCount },
+        message: 'Relacion rutina-atleta eliminada correctamente.',
+        data: { deletedCount },
       });
     } catch (error) {
       await t.rollback();

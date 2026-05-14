@@ -3,6 +3,11 @@ const bcrypt = require('bcrypt');
 const initialRoles = require('../src/seeders/roles');
 const initialGroups = require('../src/seeders/muscularGroup');
 const initialEjercices = require('../src/seeders/ejercices');
+const initialUsers = require('../src/seeders/gymUser')
+
+function isBcryptHash(value) {
+  return typeof value === 'string' && /^\$2[aby]\$\d{2}\$/.test(value);
+}
 
 async function alignIdSequence(model) {
   const tableNameMeta = model.getTableName();
@@ -73,12 +78,28 @@ async function ensureSuperAdmin() {
 
 const setupDatabase = async () => {
   try {
+    const usersWithHashedPassword = await Promise.all(
+      initialUsers.map(async (user) => {
+        const rawPassword = user?.password;
+        if (!rawPassword || isBcryptHash(rawPassword)) {
+          return user;
+        }
+
+        return {
+          ...user,
+          password: await bcrypt.hash(String(rawPassword), 10),
+        };
+      })
+    );
+
     await db.Rol.bulkCreate(initialRoles, { ignoreDuplicates: true });
     await db.MuscleGroup.bulkCreate(initialGroups, { ignoreDuplicates: true });
     await db.Ejercice.bulkCreate(initialEjercices, { ignoreDuplicates: true });
+    await db.User.bulkCreate(usersWithHashedPassword,{ignoreDuplicates: true})
     await alignIdSequence(db.Rol);
     await alignIdSequence(db.MuscleGroup);
     await alignIdSequence(db.Ejercice);
+    await alignIdSequence(db.User);
 
     await ensureSuperAdmin();
 
