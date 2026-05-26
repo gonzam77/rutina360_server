@@ -18,6 +18,9 @@ function authenticateJWT(req, res, next) {
 
   try {
     const payload = jwt.verify(token, JWT_SECRET);
+    if (payload?.tokenType && payload.tokenType !== 'access') {
+      return res.status(401).json({ message: 'Token invalido.' });
+    }
     req.authUser = payload;
     return next();
   } catch (error) {

@@ -17,6 +17,7 @@ db.Routine = require("../models/routine.model")(sequelize, DataTypes);
 db.RoutineEjercice = require("./routineEjercice.model")(sequelize, DataTypes);
 db.RoutineAthlete = require("./routineAthlete.model")(sequelize, DataTypes);
 db.CoachAthlete = require("./coachAthlete.model")(sequelize, DataTypes);
+db.RefreshToken = require("./refreshToken.model")(sequelize, DataTypes);
 
 
 //Relaciones de tablas
@@ -56,5 +57,8 @@ db.User.hasMany(db.CoachAthlete, { foreignKey: 'idCoach', as: 'coachAssignments'
 
 db.CoachAthlete.belongsTo(db.User, { foreignKey: 'idAthlete', as: 'athlete' });
 db.User.hasMany(db.CoachAthlete, { foreignKey: 'idAthlete', as: 'athleteAssignments' });
+
+db.RefreshToken.belongsTo(db.User, { foreignKey: 'idUser', as: 'user' });
+db.User.hasMany(db.RefreshToken, { foreignKey: 'idUser', as: 'refreshTokens' });
 
 module.exports = db;

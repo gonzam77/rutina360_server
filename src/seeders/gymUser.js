@@ -19,7 +19,7 @@ module.exports = [
         "isVerified": true,
         "isDeleted": false,
         "createdAt": "2026-05-12T15:47:50.518Z",
-        "updatedAt": "2026-05-13T14:15:00.387Z",
+        "updatedAt": "2026-05-13T14:15:00.387Z"
     },
     {
         "id": 3,
@@ -41,7 +41,7 @@ module.exports = [
         "isVerified": true,
         "isDeleted": false,
         "createdAt": "2026-05-12T15:52:43.629Z",
-        "updatedAt": "2026-05-12T15:52:59.215Z",
+        "updatedAt": "2026-05-12T15:52:59.215Z"
     },
     {
         "id": 4,
@@ -63,7 +63,7 @@ module.exports = [
         "isVerified": true,
         "isDeleted": false,
         "createdAt": "2026-05-12T15:55:07.619Z",
-        "updatedAt": "2026-05-13T12:04:49.796Z",
+        "updatedAt": "2026-05-13T12:04:49.796Z"
     },
     {
         "id": 5,
@@ -85,7 +85,7 @@ module.exports = [
         "isVerified": true,
         "isDeleted": false,
         "createdAt": "2026-05-12T16:00:48.430Z",
-        "updatedAt": "2026-05-12T16:00:48.430Z",
+        "updatedAt": "2026-05-12T16:00:48.430Z"
     },
     {
         "id": 6,
@@ -107,7 +107,7 @@ module.exports = [
         "isVerified": true,
         "isDeleted": false,
         "createdAt": "2026-05-12T16:02:31.626Z",
-        "updatedAt": "2026-05-12T16:02:31.626Z",
+        "updatedAt": "2026-05-12T16:02:31.626Z"
     },
     {
         "id": 7,
@@ -129,7 +129,7 @@ module.exports = [
         "isVerified": true,
         "isDeleted": false,
         "createdAt": "2026-05-13T11:45:33.298Z",
-        "updatedAt": "2026-05-13T11:45:33.298Z",
+        "updatedAt": "2026-05-13T11:45:33.298Z"
     },
     {
         "id": 8,
@@ -151,7 +151,7 @@ module.exports = [
         "isVerified": true,
         "isDeleted": false,
         "createdAt": "2026-05-13T14:14:28.280Z",
-        "updatedAt": "2026-05-13T14:14:28.369Z",
+        "updatedAt": "2026-05-13T14:14:28.369Z"
     },
     {
         "id": 24,
@@ -850,6 +850,72 @@ module.exports = [
         "weight": 80,
         "address": "Juana Koslay",
         "goal": "Hipertrofia",
+        "weeklyAvailability": "5 dias",
+        "isActive": true,
+        "isVerified": true,
+        "isDeleted": false,
+        "createdAt": "2026-05-14T11:10:00.000Z",
+        "updatedAt": "2026-05-14T11:10:00.000Z"
+    },
+    {
+        "id": 42,
+        "username": "LIBRES",
+        "dni": null,
+        "email": "libres@gmail.com",
+        "password": "libres123",
+        "idRole": 2,
+        "idAdminOwner": 42,
+        "birthDate": null,
+        "gender": null,
+        "phone": "2664489645",
+        "height": null,
+        "weight": null,
+        "address": "Del pozo 16",
+        "goal": null,
+        "weeklyAvailability": null,
+        "isActive": true,
+        "isVerified": true,
+        "isDeleted": false,
+        "createdAt": "2026-05-12T15:47:50.518Z",
+        "updatedAt": "2026-05-13T14:15:00.387Z"
+    },
+    {
+        "id": 43,
+        "username": "SEBASTMED",
+        "dni": 34182879,
+        "email": "sebastmed@gmail.com",
+        "password": "123",
+        "idRole": 4,
+        "idAdminOwner": 42,
+        "birthDate": "1989-04-26T00:00:00.000Z",
+        "gender": "Masculino",
+        "phone": "2664100015",
+        "height": 178,
+        "weight": 68,
+        "address": "Juana Koslay",
+        "goal": "Hipertrofia",
+        "weeklyAvailability": "5 dias",
+        "isActive": true,
+        "isVerified": true,
+        "isDeleted": false,
+        "createdAt": "2026-05-14T11:10:00.000Z",
+        "updatedAt": "2026-05-14T11:10:00.000Z"
+    },
+    {
+        "id": 44,
+        "username": "FLORMED",
+        "dni": 34182879,
+        "email": "medflor64@gmail.com",
+        "password": "123",
+        "idRole": 4,
+        "idAdminOwner": 42,
+        "birthDate": "1985-08-16T00:00:00.000Z",
+        "gender": "Femenino",
+        "phone": "2664100015",
+        "height": 165,
+        "weight": 70,
+        "address": "Juana Koslay",
+        "goal": null,
         "weeklyAvailability": "5 dias",
         "isActive": true,
         "isVerified": true,

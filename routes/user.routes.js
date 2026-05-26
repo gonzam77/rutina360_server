@@ -6,6 +6,9 @@ const { authenticateJWT } = require('../middleware/auth.middleware');
 
 router.post('/', authenticateJWT, userController.createUser);
 router.post('/auth', userController.getAuthUser);
+router.post('/auth/refresh', userController.refreshAuthToken);
+router.post('/auth/logout', userController.logout);
+router.post('/auth/logout-all', authenticateJWT, userController.logoutAll);
 router.get('/me', authenticateJWT, userController.getCurrentUser);
 router.post('/link', authenticateJWT, userController.linkAthleteToCoach);
 router.get('/link', authenticateJWT, userController.getCoachAthletes);

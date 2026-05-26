@@ -1,10 +1,13 @@
-const { User, Rol, CoachAthlete } = require('../models');
+const crypto = require('crypto');
+const { User, Rol, CoachAthlete, RefreshToken } = require('../models');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const { Op } = require('sequelize');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'dev_jwt_secret_change_me';
-const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '8h';
+const ACCESS_TOKEN_SECRET = process.env.JWT_SECRET || 'dev_jwt_secret_change_me';
+const ACCESS_TOKEN_EXPIRES_IN = process.env.JWT_EXPIRES_IN || process.env.ACCESS_TOKEN_EXPIRES_IN || '15m';
+const REFRESH_TOKEN_SECRET = process.env.JWT_REFRESH_SECRET || 'dev_jwt_refresh_secret_change_me';
+const REFRESH_TOKEN_EXPIRES_DAYS = Number(process.env.REFRESH_TOKEN_EXPIRES_DAYS || 60);
 
 const ROLE_SUPER_ADMIN = 1;
 const ROLE_GYM = 2;
@@ -120,7 +123,7 @@ async function checkPassword(user, password) {
   }
 }
 
-function buildAuthResponse(user) {
+function buildAuthPayload(user) {
   const userData = user.toJSON();
   delete userData.password;
 
@@ -132,10 +135,56 @@ function buildAuthResponse(user) {
     idAdminOwner: user.idAdminOwner,
   };
 
-  const token = jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+  return {
+    payload,
+    user: userData,
+  };
+}
+
+function hashToken(rawToken) {
+  return crypto.createHash('sha256').update(rawToken).digest('hex');
+}
+
+function generateAccessToken(payload) {
+  return jwt.sign(
+    { ...payload, tokenType: 'access' },
+    ACCESS_TOKEN_SECRET,
+    { expiresIn: ACCESS_TOKEN_EXPIRES_IN }
+  );
+}
+
+function generateRefreshToken(payload) {
+  const rawToken = crypto.randomBytes(64).toString('hex');
+  const refreshToken = jwt.sign(
+    { ...payload, tokenType: 'refresh', tokenId: rawToken },
+    REFRESH_TOKEN_SECRET,
+    { expiresIn: `${REFRESH_TOKEN_EXPIRES_DAYS}d` }
+  );
 
   return {
-    token,
+    refreshToken,
+    refreshTokenHash: hashToken(refreshToken),
+    expiresAt: new Date(Date.now() + REFRESH_TOKEN_EXPIRES_DAYS * 24 * 60 * 60 * 1000),
+  };
+}
+
+async function buildAuthResponse(user, req) {
+  const { payload, user: userData } = buildAuthPayload(user);
+  const accessToken = generateAccessToken(payload);
+  const refresh = generateRefreshToken(payload);
+
+  await RefreshToken.create({
+    tokenHash: refresh.refreshTokenHash,
+    idUser: user.id,
+    expiresAt: refresh.expiresAt,
+    userAgent: req.get('user-agent') || null,
+    ipAddress: req.ip || null,
+  });
+
+  return {
+    accessToken,
+    token: accessToken,
+    refreshToken: refresh.refreshToken,
     user: userData,
   };
 }
@@ -286,9 +335,129 @@ module.exports = {
         return res.status(401).json({ message: 'Credenciales inválidas.' });
       }
 
-      return res.status(200).json({ data: buildAuthResponse(user) });
+      const authData = await buildAuthResponse(user, req);
+      return res.status(200).json({ data: authData });
     } catch (error) {
       console.error('Error getAuthUser:', error);
+      return res.status(getErrorStatus(error)).json({ message: getErrorMessage(error) });
+    }
+  },
+
+  async refreshAuthToken(req, res) {
+    try {
+      const refreshToken = toNullableString(req.body?.refreshToken);
+      if (!refreshToken) {
+        return res.status(400).json({ message: 'Refresh token obligatorio.' });
+      }
+
+      let payload;
+      try {
+        payload = jwt.verify(refreshToken, REFRESH_TOKEN_SECRET);
+      } catch (error) {
+        if (error.name === 'TokenExpiredError') {
+          return res.status(401).json({ message: 'Refresh token expirado.' });
+        }
+        return res.status(401).json({ message: 'Refresh token invalido.' });
+      }
+
+      if (payload?.tokenType !== 'refresh' || !payload?.id) {
+        return res.status(401).json({ message: 'Refresh token invalido.' });
+      }
+
+      const currentTokenHash = hashToken(refreshToken);
+      const storedToken = await RefreshToken.findOne({
+        where: {
+          tokenHash: currentTokenHash,
+          idUser: payload.id,
+          revokedAt: null,
+          expiresAt: { [Op.gt]: new Date() },
+        },
+      });
+
+      if (!storedToken) {
+        return res.status(401).json({ message: 'Refresh token invalido o revocado.' });
+      }
+
+      const user = await User.findOne({
+        where: { id: payload.id, isActive: true, isDeleted: false },
+        include: [roleInclude, adminOwnerInclude],
+      });
+
+      if (!user || user.isDeleted || !user.isActive) {
+        return res.status(401).json({ message: 'Usuario no habilitado.' });
+      }
+
+      const authPayload = buildAuthPayload(user).payload;
+      const accessToken = generateAccessToken(authPayload);
+      const newRefresh = generateRefreshToken(authPayload);
+
+      await RefreshToken.create({
+        tokenHash: newRefresh.refreshTokenHash,
+        idUser: user.id,
+        expiresAt: newRefresh.expiresAt,
+        userAgent: req.get('user-agent') || null,
+        ipAddress: req.ip || null,
+      });
+
+      await storedToken.update({
+        revokedAt: new Date(),
+        replacedByTokenHash: newRefresh.refreshTokenHash,
+      });
+
+      return res.status(200).json({
+        data: {
+          accessToken,
+          token: accessToken,
+          refreshToken: newRefresh.refreshToken,
+        },
+      });
+    } catch (error) {
+      console.error('Error refreshAuthToken:', error);
+      return res.status(getErrorStatus(error)).json({ message: getErrorMessage(error) });
+    }
+  },
+
+  async logout(req, res) {
+    try {
+      const refreshToken = toNullableString(req.body?.refreshToken);
+      if (!refreshToken) {
+        return res.status(400).json({ message: 'Refresh token obligatorio.' });
+      }
+
+      const tokenHash = hashToken(refreshToken);
+      const storedToken = await RefreshToken.findOne({
+        where: {
+          tokenHash,
+          revokedAt: null,
+        },
+      });
+
+      if (storedToken) {
+        await storedToken.update({ revokedAt: new Date() });
+      }
+
+      return res.status(200).json({ message: 'Sesion cerrada.' });
+    } catch (error) {
+      console.error('Error logout:', error);
+      return res.status(getErrorStatus(error)).json({ message: getErrorMessage(error) });
+    }
+  },
+
+  async logoutAll(req, res) {
+    try {
+      const userId = req.authUser?.id;
+      if (!userId) {
+        return res.status(401).json({ message: 'Usuario no autenticado.' });
+      }
+
+      await RefreshToken.update(
+        { revokedAt: new Date() },
+        { where: { idUser: userId, revokedAt: null } }
+      );
+
+      return res.status(200).json({ message: 'Todas las sesiones fueron cerradas.' });
+    } catch (error) {
+      console.error('Error logoutAll:', error);
       return res.status(getErrorStatus(error)).json({ message: getErrorMessage(error) });
     }
   },
