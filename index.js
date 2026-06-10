@@ -15,6 +15,10 @@ app.use(cors({
 }));
 app.use(express.json());
 
+app.get('/', (req, res) => {
+  res.send('API funcionando');
+});
+
 app.use(require('./routes/index'));
 
 //Iniciar servidor + DB
