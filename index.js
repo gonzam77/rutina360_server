@@ -5,7 +5,7 @@ const db = require('./models/index');
 const setupDatabase = require('./config/setup')
 
 const app = express();
-const port = 3000;
+const port = process.env.PORT || 3000;
 
 const corsOrigin = process.env.CORS_ORIGIN || true;
 
@@ -14,6 +14,10 @@ app.use(cors({
   credentials: true,
 }));
 app.use(express.json());
+
+app.get('/', (req, res) => {
+  res.send('API funcionando');
+});
 
 app.use(require('./routes/index'));
 
