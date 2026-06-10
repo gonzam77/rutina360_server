@@ -1,5 +1,16 @@
 const crypto = require('crypto');
-const { User, Rol, CoachAthlete, RefreshToken } = require('../models');
+const {
+  User,
+  Rol,
+  CoachAthlete,
+  RefreshToken,
+  Routine,
+  RoutineEjercice,
+  RoutineAthlete,
+  Note,
+  Comment,
+  sequelize,
+} = require('../models');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const { Op } = require('sequelize');
@@ -225,6 +236,64 @@ function getUsersScopeWhereByAuthUser(authUser) {
     isDeleted: false,
     id: authUser.id,
   };
+}
+
+async function deletePermanentUserDependencies(userId, transaction) {
+  await RefreshToken.destroy({ where: { idUser: userId }, transaction });
+
+  await CoachAthlete.destroy({
+    where: {
+      [Op.or]: [{ idCoach: userId }, { idAthlete: userId }],
+    },
+    transaction,
+  });
+
+  await RoutineAthlete.destroy({ where: { idAthlete: userId }, transaction });
+
+  const createdRoutines = await Routine.findAll({
+    attributes: ['id'],
+    where: { idUser: userId },
+    transaction,
+    raw: true,
+  });
+  const createdRoutineIds = createdRoutines.map((routine) => routine.id);
+
+  if (createdRoutineIds.length > 0) {
+    await RoutineEjercice.destroy({
+      where: { idRoutine: { [Op.in]: createdRoutineIds } },
+      transaction,
+    });
+
+    await RoutineAthlete.destroy({
+      where: { idRoutine: { [Op.in]: createdRoutineIds } },
+      transaction,
+    });
+
+    await Routine.destroy({
+      where: { id: { [Op.in]: createdRoutineIds } },
+      transaction,
+    });
+  }
+
+  const notes = await Note.findAll({
+    attributes: ['id'],
+    where: { idUser: userId },
+    transaction,
+    raw: true,
+  });
+  const noteIds = notes.map((note) => note.id);
+
+  if (noteIds.length > 0) {
+    await Comment.destroy({
+      where: { idNote: { [Op.in]: noteIds } },
+      transaction,
+    });
+
+    await Note.destroy({
+      where: { id: { [Op.in]: noteIds } },
+      transaction,
+    });
+  }
 }
 
 function resolveAdminOwnerForCreate(payload, authUser) {
@@ -786,14 +855,41 @@ module.exports = {
       }
 
       const { id } = req.params;
-      const user = await User.findByPk(id);
+      const result = await sequelize.transaction(async (transaction) => {
+        const user = await User.findByPk(id, { transaction });
 
-      if (!user) {
-        return res.status(404).json({ message: 'Usuario no encontrado.' });
-      }
+        if (!user) {
+          return { status: 404, body: { message: 'Usuario no encontrado.' } };
+        }
 
-      await user.destroy();
-      return res.status(200).json({ message: 'Usuario eliminado permanentemente.' });
+        const managedUsersCount = await User.count({
+          where: {
+            idAdminOwner: id,
+            id: { [Op.ne]: id },
+          },
+          transaction,
+        });
+
+        if (managedUsersCount > 0) {
+          return {
+            status: 400,
+            body: {
+              message: 'No se puede eliminar permanentemente un owner con usuarios asociados. Reasigna o elimina esos usuarios primero.',
+            },
+          };
+        }
+
+        await deletePermanentUserDependencies(id, transaction);
+
+        if (String(user.idAdminOwner) === String(user.id)) {
+          await user.update({ idAdminOwner: null }, { transaction });
+        }
+
+        await user.destroy({ transaction });
+        return { status: 200, body: { message: 'Usuario eliminado permanentemente.' } };
+      });
+
+      return res.status(result.status).json(result.body);
     } catch (error) {
       return res.status(getErrorStatus(error)).json({ message: getErrorMessage(error) });
     }
