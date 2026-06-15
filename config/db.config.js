@@ -1,8 +1,20 @@
 require('dotenv').config();
 const { Sequelize } = require('sequelize');
 
-const databaseUrl = process.env.DATABASE_URL;
-const dialect = process.env.DB_DIALECT || 'postgres';
+function getEnv(name) {
+  const value = process.env[name];
+  if (value === undefined || value === null) return undefined;
+
+  const trimmedValue = String(value).trim();
+  if (!trimmedValue || ['null', 'undefined'].includes(trimmedValue.toLowerCase())) {
+    return undefined;
+  }
+
+  return trimmedValue;
+}
+
+const databaseUrl = getEnv('DATABASE_URL');
+const dialect = getEnv('DB_DIALECT') || 'postgres';
 
 function parseBoolean(value, fallback) {
   if (value === undefined || value === null || value === '') return fallback;
@@ -21,9 +33,23 @@ function isLocalDatabaseUrl(url) {
   }
 }
 
-const dbHost = process.env.DB_HOST || 'localhost';
+function assertValidDatabaseUrl(url) {
+  let parsedUrl;
+
+  try {
+    parsedUrl = new URL(url);
+  } catch (_) {
+    throw new Error('DATABASE_URL debe tener formato postgres://usuario:password@host:puerto/base_de_datos');
+  }
+
+  if (!['postgres:', 'postgresql:'].includes(parsedUrl.protocol) || !parsedUrl.hostname) {
+    throw new Error('DATABASE_URL debe empezar con postgres:// o postgresql:// e incluir un host valido.');
+  }
+}
+
+const dbHost = getEnv('DB_HOST') || 'localhost';
 const defaultSsl = databaseUrl ? !isLocalDatabaseUrl(databaseUrl) : !isLocalHost(dbHost);
-const useSsl = parseBoolean(process.env.DB_SSL, defaultSsl);
+const useSsl = parseBoolean(getEnv('DB_SSL'), defaultSsl);
 
 const sequelizeOptions = {
   dialect,
@@ -39,14 +65,18 @@ if (useSsl) {
   };
 }
 
+if (databaseUrl) {
+  assertValidDatabaseUrl(databaseUrl);
+}
+
 const sequelize = databaseUrl ? new Sequelize(databaseUrl, sequelizeOptions) : new Sequelize(
-  process.env.DB_NAME,
-  process.env.DB_USER,
-  process.env.DB_PASSWORD,
+  getEnv('DB_NAME'),
+  getEnv('DB_USER'),
+  getEnv('DB_PASSWORD'),
   {
     ...sequelizeOptions,
     host: dbHost,
-    port: process.env.DB_PORT ? Number(process.env.DB_PORT) : undefined,
+    port: getEnv('DB_PORT') ? Number(getEnv('DB_PORT')) : undefined,
   }
 );
 
