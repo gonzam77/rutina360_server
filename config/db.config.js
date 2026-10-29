@@ -1,4 +1,4 @@
-require('dotenv').config();
+require('./env');
 const { Sequelize } = require('sequelize');
 
 function getEnv(name) {

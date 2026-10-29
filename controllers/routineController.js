@@ -8,7 +8,9 @@ const ROLE_GYM = 2;
 const ROUTINE_CREATOR_ROLES = [ROLE_COACH, ROLE_GYM];
 
 const ROUTINE_FIELDS = ['name', 'order', 'time'];
-const ROUTINE_EXERCISE_FIELDS = ['idEjercice', 'series', 'rest', 'comments'];
+// rest = minutos (compatibilidad), restSeconds = segundos. Si llega uno solo,
+// el modelo completa el otro (ver hooks en routineEjercice.model.js).
+const ROUTINE_EXERCISE_FIELDS = ['idEjercice', 'series', 'rest', 'restSeconds', 'comments'];
 
 function pickDefinedFields(source, fields) {
   return fields.reduce((payload, field) => {
@@ -156,6 +158,7 @@ module.exports = {
           idEjercice: exercise.idEjercice,
           series: exercise.series,
           rest: exercise.rest,
+          restSeconds: exercise.restSeconds,
           comments: exercise.comments,
         }));
 

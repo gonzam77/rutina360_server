@@ -4,6 +4,7 @@ const initialRoles = require('../src/seeders/roles');
 const initialGroups = require('../src/seeders/muscularGroup');
 const initialEjercices = require('../src/seeders/ejercices');
 const initialUsers = require('../src/seeders/gymUser')
+const seedImages = require('./seedImages');
 
 function isBcryptHash(value) {
   return typeof value === 'string' && /^\$2[aby]\$\d{2}\$/.test(value);
@@ -102,6 +103,8 @@ const setupDatabase = async () => {
     await alignIdSequence(db.User);
 
     await ensureSuperAdmin();
+
+    await seedImages();
 
     console.log('>> Datos iniciales cargados con exito.');
   } catch (error) {

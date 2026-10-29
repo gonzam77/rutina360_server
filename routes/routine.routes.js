@@ -2,7 +2,13 @@ const express = require('express');
 const router = express.Router();
 
 const routineController = require('../controllers/routineController');
+const sharedRoutineController = require('../controllers/sharedRoutineController');
 const { authenticateJWT, authorizeRoles } = require('../middleware/auth.middleware');
+
+// Compartir rutinas por codigo: cualquier usuario logueado (incluye atletas).
+router.post('/share', authenticateJWT, sharedRoutineController.createShare);
+router.get('/share/:code', authenticateJWT, sharedRoutineController.getShare);
+router.delete('/share/:code', authenticateJWT, sharedRoutineController.deleteShare);
 
 router.get('/', authenticateJWT, authorizeRoles(2, 3), routineController.getRoutines); //Traer rutina por coach
 router.post('/', authenticateJWT, authorizeRoles(2, 3), routineController.createRoutine); //Crear rutinas por coach

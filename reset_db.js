@@ -1,4 +1,4 @@
-require('dotenv').config();
+require('./config/env');
 const setupDatabase = require('./config/setup');
 
 async function reset() {

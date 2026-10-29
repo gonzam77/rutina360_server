@@ -1,0 +1,11 @@
+{
+  "name": "rutina360-ilustraciones",
+  "private": true,
+  "description": "Generador de las ilustraciones de ejercicios de Rutina360",
+  "scripts": {
+    "build": "node build_final.js"
+  },
+  "dependencies": {
+    "sharp": "^0.34.0"
+  }
+}

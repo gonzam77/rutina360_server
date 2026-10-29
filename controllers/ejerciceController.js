@@ -1,7 +1,6 @@
 const { Ejercice, RoutineEjercice, RoutineAthlete, sequelize } = require('../models');
 
 const ROLE_SUPER_ADMIN = 1;
-const ROLE_GYM = 2;
 
 function getErrorStatus(error) {
   const sequelizeErrorNames = [
@@ -28,8 +27,10 @@ module.exports = {
     const requesterRole = Number(req.authUser?.idRole);
     const requesterId = Number(req.authUser?.id);
 
-    if (![ROLE_SUPER_ADMIN, ROLE_GYM].includes(requesterRole)) {
-      return res.status(403).json({ message: 'Solo superadmin y gym pueden crear ejercicios.' });
+    // El catalogo lo carga solo el super admin: cada ejercicio necesita su
+    // ilustracion, y las imagenes se generan con una sola estetica.
+    if (requesterRole !== ROLE_SUPER_ADMIN) {
+      return res.status(403).json({ message: 'Solo el administrador general puede crear ejercicios.' });
     }
 
     const pickEjerciceFields = (payload = {}) => ({
@@ -108,12 +109,8 @@ module.exports = {
       }
 
       const requesterRole = Number(req.authUser?.idRole);
-      const requesterId = Number(req.authUser?.id);
-      const isSuperAdmin = requesterRole === ROLE_SUPER_ADMIN;
-      const isOwner = Number(ejercice.idOwner) === requesterId;
-
-      if (!isSuperAdmin && !isOwner) {
-        return res.status(403).json({ message: 'Solo el dueño o superadmin puede editar este ejercicio.' });
+      if (requesterRole !== ROLE_SUPER_ADMIN) {
+        return res.status(403).json({ message: 'Solo el administrador general puede editar ejercicios.' });
       }
 
       const payload = {
@@ -134,19 +131,15 @@ module.exports = {
       const { id } = req.params;
       const ejercice = await Ejercice.findByPk(id, { transaction: t });
       const requesterRole = Number(req.authUser?.idRole);
-      const requesterId = Number(req.authUser?.id);
 
       if (!ejercice) {
         await t.rollback();
         return res.status(404).json({ message: 'Ejercicio no encontrado.' });
       }
 
-      const isSuperAdmin = requesterRole === ROLE_SUPER_ADMIN;
-      const isOwner = Number(ejercice.idOwner) === requesterId;
-
-      if (!isSuperAdmin && !isOwner) {
+      if (requesterRole !== ROLE_SUPER_ADMIN) {
         await t.rollback();
-        return res.status(403).json({ message: 'Solo el dueño o superadmin puede eliminar este ejercicio.' });
+        return res.status(403).json({ message: 'Solo el administrador general puede eliminar ejercicios.' });
       }
 
       const routineRelations = await RoutineEjercice.findAll({
