@@ -7,10 +7,82 @@ const ROLE_ATHLETE = 4;
 const ROLE_GYM = 2;
 const ROUTINE_CREATOR_ROLES = [ROLE_COACH, ROLE_GYM];
 
+const {
+  KIND_FUNCTIONAL,
+  normalizarKind,
+  esFuncional,
+  camposRutinaFuncional,
+  ejercicioFuncional,
+  duracionFuncional,
+} = require('../lib/funcional');
+
 const ROUTINE_FIELDS = ['name', 'order', 'time'];
+// Solo en funcionales (ver lib/funcional.js). kind no se cambia al editar.
+const FUNCTIONAL_ROUTINE_FIELDS = ['rounds', 'roundRestSeconds', 'defaultMode'];
 // rest = minutos (compatibilidad), restSeconds = segundos. Si llega uno solo,
 // el modelo completa el otro (ver hooks en routineEjercice.model.js).
-const ROUTINE_EXERCISE_FIELDS = ['idEjercice', 'series', 'rest', 'restSeconds', 'comments'];
+// workSeconds solo lo usan los funcionales; position ordena los ejercicios.
+const ROUTINE_EXERCISE_FIELDS = ['idEjercice', 'series', 'rest', 'restSeconds', 'comments', 'workSeconds', 'position'];
+
+// Campos de la rutina que viajan en las asignaciones (la app los necesita para
+// armar su copia local).
+const ROUTINE_ATTRIBUTES = ['id', 'name', 'idUser', 'order', 'time', 'kind', 'rounds', 'roundRestSeconds', 'defaultMode'];
+
+// Los ejercicios de una rutina se devuelven en su orden: primero por position
+// (funcionales, o lo que se haya reordenado) y despues por id, que es el orden
+// en que se cargaron las filas viejas.
+const ORDEN_EJERCICIOS = [
+  [RoutineEjercice, 'position', 'ASC NULLS LAST'],
+  [RoutineEjercice, 'id', 'ASC'],
+];
+const ORDEN_EJERCICIOS_ASIGNACION = [
+  [Routine, RoutineEjercice, 'position', 'ASC NULLS LAST'],
+  [Routine, RoutineEjercice, 'id', 'ASC'],
+];
+
+/**
+ * Normaliza los ejercicios de un funcional antes de guardarlos: trabajo y
+ * descanso validados, series en 1 y position segun el orden de la lista (si el
+ * cliente no la manda). Los marcados para borrar pasan sin tocar.
+ */
+function normalizarEjerciciosFuncionales(exercises) {
+  let posicion = 0;
+  const normalizados = [];
+  for (const exercise of exercises) {
+    if (shouldDeleteRoutineExercise(exercise)) {
+      normalizados.push(exercise);
+      continue;
+    }
+    const { campos, error } = ejercicioFuncional(exercise);
+    if (error) return { error };
+    posicion += 1;
+    const { rest, ...resto } = exercise;
+    normalizados.push({
+      ...resto,
+      ...campos,
+      position: Number.isInteger(Number(exercise.position)) && exercise.position !== null && exercise.position !== ''
+        ? Number(exercise.position)
+        : posicion,
+      comments: exercise.comments ?? '',
+    });
+  }
+  return { exercises: normalizados };
+}
+
+/** true si todos los ejercicios son del catalogo funcional. */
+async function sonEjerciciosFuncionales(ids, transaction) {
+  if (!ids.length) return true;
+  const ejercicios = await Ejercice.findAll({
+    where: { id: ids },
+    attributes: ['id'],
+    include: [{ model: MuscleGroup, attributes: ['kind'] }],
+    transaction,
+  });
+  return ejercicios.length === ids.length && ejercicios.every((e) => e.MuscleGroup?.kind === KIND_FUNCTIONAL);
+}
+
+/** Saca los funcionales de una lista de asignaciones (para apps viejas). */
+const sinFuncionales = (asignaciones) => asignaciones.filter((a) => !esFuncional(a.Routine));
 
 function pickDefinedFields(source, fields) {
   return fields.reduce((payload, field) => {
@@ -100,11 +172,12 @@ module.exports = {
             include: [
               {
                 model: Ejercice,
-                include: [{ model: MuscleGroup, attributes: ['id', 'name'] }],
+                include: [{ model: MuscleGroup, attributes: ['id', 'name', 'kind'] }],
               },
             ],
           },
         ],
+        order: [['id', 'ASC'], ...ORDEN_EJERCICIOS],
       });
 
       return res.status(200).json({ data: routines });
@@ -117,7 +190,10 @@ module.exports = {
   async createRoutine(req, res) {
     const t = await sequelize.transaction();
     try {
-      const { name, order, time, exercises } = req.body;
+      const { name, order, exercises: ejerciciosBody } = req.body;
+      let { time } = req.body;
+      let exercises = ejerciciosBody;
+      const kind = normalizarKind(req.body?.kind);
       const requesterRole = Number(req.authUser?.idRole);
       const requesterId = Number(req.authUser?.id);
 
@@ -137,20 +213,53 @@ module.exports = {
         return res.status(400).json({ message: 'El creador de la rutina debe ser un coach o gym valido.' });
       }
 
-      const routine = await Routine.create({ name, idUser: requesterId, order, time }, { transaction: t });
+      let camposFuncionales = {};
+      if (kind === KIND_FUNCTIONAL) {
+        const rutina = camposRutinaFuncional(req.body);
+        if (rutina.error) {
+          await t.rollback();
+          return res.status(400).json({ message: rutina.error });
+        }
+        if (!Array.isArray(exercises) || exercises.length === 0) {
+          await t.rollback();
+          return res.status(400).json({ message: 'Un funcional necesita al menos un bloque.' });
+        }
+        const bloques = normalizarEjerciciosFuncionales(exercises);
+        if (bloques.error) {
+          await t.rollback();
+          return res.status(400).json({ message: bloques.error });
+        }
+        exercises = bloques.exercises;
+        camposFuncionales = rutina.campos;
+        // El tiempo de un funcional sale de sus bloques (en minutos, para arriba).
+        if (!time) {
+          time = Math.max(1, Math.ceil(duracionFuncional({ ...camposFuncionales, exercises }) / 60));
+        }
+      }
+
+      const routine = await Routine.create(
+        { name, idUser: requesterId, order, time, kind, ...camposFuncionales },
+        { transaction: t }
+      );
 
       let createdExercises = [];
       if (Array.isArray(exercises) && exercises.length > 0) {
-        const exerciseIds = exercises.map((exercise) => exercise.idEjercice);
+        // Una rutina puede repetir ejercicios: se compara contra los ids unicos.
+        const exerciseIds = getUniqueDefined(exercises.map((exercise) => exercise.idEjercice));
         const existingExercises = await Ejercice.findAll({
           where: { id: exerciseIds },
           attributes: ['id'],
           transaction: t,
         });
 
-        if (existingExercises.length !== exerciseIds.length) {
+        if (existingExercises.length !== exerciseIds.length || exercises.some((e) => !hasDefinedValue(e.idEjercice))) {
           await t.rollback();
           return res.status(404).json({ message: 'Uno o más ejercicios no existen.' });
+        }
+
+        if (kind === KIND_FUNCTIONAL && !(await sonEjerciciosFuncionales(exerciseIds, t))) {
+          await t.rollback();
+          return res.status(400).json({ message: 'Un funcional solo puede tener ejercicios del catalogo funcional.' });
         }
 
         const routineExercisePayload = exercises.map((exercise) => ({
@@ -160,6 +269,8 @@ module.exports = {
           rest: exercise.rest,
           restSeconds: exercise.restSeconds,
           comments: exercise.comments,
+          workSeconds: exercise.workSeconds,
+          position: exercise.position,
         }));
 
         createdExercises = await RoutineEjercice.bulkCreate(routineExercisePayload, {
@@ -187,8 +298,8 @@ module.exports = {
     const t = await sequelize.transaction();
     try {
       const { id } = req.params;
+      let { exercises } = req.body;
       const {
-        exercises,
         deletedExerciseIds,
         deleteExerciseIds,
         exercisesToDelete,
@@ -225,7 +336,32 @@ module.exports = {
         return res.status(400).json({ message: 'El campo exercises debe ser un array.' });
       }
 
-      const routinePayload = pickDefinedFields(req.body, ROUTINE_FIELDS);
+      // El tipo de una rutina no cambia: un funcional no se convierte en fuerza.
+      if (req.body?.kind !== undefined && normalizarKind(req.body.kind) !== normalizarKind(routine.kind)) {
+        await t.rollback();
+        return res.status(400).json({ message: 'No se puede cambiar el tipo de una rutina.' });
+      }
+
+      const funcional = esFuncional(routine);
+      let camposFuncionales = {};
+      if (funcional) {
+        const rutina = camposRutinaFuncional(req.body, { parcial: true });
+        if (rutina.error) {
+          await t.rollback();
+          return res.status(400).json({ message: rutina.error });
+        }
+        camposFuncionales = rutina.campos;
+        if (Array.isArray(exercises)) {
+          const bloques = normalizarEjerciciosFuncionales(exercises);
+          if (bloques.error) {
+            await t.rollback();
+            return res.status(400).json({ message: bloques.error });
+          }
+          exercises = bloques.exercises;
+        }
+      }
+
+      const routinePayload = { ...pickDefinedFields(req.body, ROUTINE_FIELDS), ...camposFuncionales };
       if (Object.keys(routinePayload).length > 0) {
         await routine.update(routinePayload, { transaction: t });
       }
@@ -292,6 +428,11 @@ module.exports = {
           if (existingExercises.length !== referencedEjerciceIds.length) {
             await t.rollback();
             return res.status(404).json({ message: 'Uno o mas ejercicios no existen.' });
+          }
+
+          if (funcional && !(await sonEjerciciosFuncionales(referencedEjerciceIds, t))) {
+            await t.rollback();
+            return res.status(400).json({ message: 'Un funcional solo puede tener ejercicios del catalogo funcional.' });
           }
         }
 
@@ -432,11 +573,12 @@ module.exports = {
             include: [
               {
                 model: Ejercice,
-                include: [{ model: MuscleGroup, attributes: ['id', 'name'] }],
+                include: [{ model: MuscleGroup, attributes: ['id', 'name', 'kind'] }],
               },
             ],
           },
         ],
+        order: ORDEN_EJERCICIOS,
         transaction: t,
       });
 
@@ -714,14 +856,14 @@ module.exports = {
         include: [
           {
             model: Routine,
-            attributes: ['id', 'name', 'idUser', 'order', 'time'],
+            attributes: ROUTINE_ATTRIBUTES,
             include: [
               {
                 model: RoutineEjercice,
                 include: [
                   {
                     model: Ejercice,
-                    include: [{ model: MuscleGroup, attributes: ['id', 'name'] }],
+                    include: [{ model: MuscleGroup, attributes: ['id', 'name', 'kind'] }],
                   },
                 ],
               },
@@ -729,9 +871,10 @@ module.exports = {
           },
           { model: User, as: 'athlete', attributes: { exclude: ['password'] } },
         ],
+        order: [['id', 'ASC'], ...ORDEN_EJERCICIOS_ASIGNACION],
       });
 
-      return res.status(200).json({ data: assignments });
+      return res.status(200).json({ data: req.soportaFuncional ? assignments : sinFuncionales(assignments) });
     } catch (error) {
       console.error('Error getActiveAssignments:', error);
       return res.status(500).json({ message: 'Error al obtener asignaciones activas.' });
@@ -806,14 +949,14 @@ module.exports = {
         include: [
           {
             model: Routine,
-            attributes: ['id', 'name', 'idUser', 'order', 'time'],
+            attributes: ROUTINE_ATTRIBUTES,
             include: [
               {
                 model: RoutineEjercice,
                 include: [
                   {
                     model: Ejercice,
-                    include: [{ model: MuscleGroup, attributes: ['id', 'name'] }],
+                    include: [{ model: MuscleGroup, attributes: ['id', 'name', 'kind'] }],
                   },
                 ],
               },
@@ -825,8 +968,10 @@ module.exports = {
             attributes: { exclude: ['password'] }
           }
         ],
+        order: [['id', 'ASC'], ...ORDEN_EJERCICIOS_ASIGNACION],
       });
-      return res.status(200).json({ data: assignments });
+      // Una app vieja no sabe mostrar un funcional: solo le llegan las de fuerza.
+      return res.status(200).json({ data: req.soportaFuncional ? assignments : sinFuncionales(assignments) });
     } catch (error) {
       console.error('Error getActiveAssignmentsByAthlete:', error);
       return res.status(500).json({ message: 'Error al obtener asignaciones por atleta.' });

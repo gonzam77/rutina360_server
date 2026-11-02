@@ -15,6 +15,8 @@ app.use(cors({
   credentials: true,
 }));
 app.use(express.json());
+// Marca a los clientes que entienden entrenamientos funcionales (ver middleware).
+app.use(require('./middleware/clienteFuncional'));
 
 app.get('/', (req, res) => {
   res.send('API funcionando');

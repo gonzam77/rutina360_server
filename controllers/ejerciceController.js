@@ -1,4 +1,19 @@
-const { Ejercice, RoutineEjercice, RoutineAthlete, sequelize } = require('../models');
+const { Ejercice, MuscleGroup, RoutineEjercice, RoutineAthlete, sequelize } = require('../models');
+const { KIND_FUNCTIONAL, KIND_STRENGTH, LIMITES } = require('../lib/funcional');
+
+// Tiempo de trabajo sugerido de un ejercicio funcional: vacio = sin sugerencia.
+function tiempoSugerido(valor) {
+  if (valor === undefined) return undefined;
+  if (valor === null || valor === '') return null;
+  const numero = Number(valor);
+  const [min, max] = LIMITES.workSeconds;
+  if (!Number.isInteger(numero) || numero < min || numero > max) {
+    const error = new Error('El tiempo sugerido tiene que estar entre 5 segundos y 30 minutos.');
+    error.status = 400;
+    throw error;
+  }
+  return numero;
+}
 
 const ROLE_SUPER_ADMIN = 1;
 
@@ -37,6 +52,7 @@ module.exports = {
       name: payload.name,
       idMuscleGroup: payload.idMuscleGroup,
       idOwner: requesterId,
+      defaultWorkSeconds: tiempoSugerido(payload.defaultWorkSeconds),
     });
 
     const data = req.body;
@@ -67,7 +83,7 @@ module.exports = {
     } catch (error) {
       console.error('Error createEjercice:', error);
       // Usamos tus funciones auxiliares de error
-      return res.status(getErrorStatus(error)).json({ 
+      return res.status(error.status || getErrorStatus(error)).json({ 
         message: getErrorMessage(error) 
       });
     }
@@ -75,7 +91,11 @@ module.exports = {
 
   async getEjercices(req, res) {
     try {
-      const exercices = await Ejercice.findAll();
+      // ?kind=strength|functional filtra por el tipo de su grupo; sin filtro, todo.
+      const { kind } = req.query || {};
+      const exercices = kind === KIND_FUNCTIONAL || kind === KIND_STRENGTH
+        ? await Ejercice.findAll({ include: [{ model: MuscleGroup, attributes: [], where: { kind } }] })
+        : await Ejercice.findAll();
       return res.status(200).json({ data: exercices });
     } catch (error) {
       console.error('Error getEjercices:', error);
@@ -116,12 +136,13 @@ module.exports = {
       const payload = {
         name: req.body?.name,
         idMuscleGroup: req.body?.idMuscleGroup,
+        defaultWorkSeconds: tiempoSugerido(req.body?.defaultWorkSeconds),
       };
       await ejercice.update(payload);
       return res.status(200).json({ message: 'Ejercicio actualizado.', data: ejercice });
     } catch (error) {
       console.error('Error updateEjercice:', error);
-      return res.status(getErrorStatus(error)).json({ message: getErrorMessage(error) });
+      return res.status(error.status || getErrorStatus(error)).json({ message: getErrorMessage(error) });
     }
   },
 

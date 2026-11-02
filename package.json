@@ -11,7 +11,8 @@
     "dev": "nodemon index.js",
     "dev:local": "nodemon index.js --local",
     "usuarios:local": "node scripts/crearUsuariosLocal.js --local",
-    "start": "node index.js"
+    "start": "node index.js",
+    "prueba:funcional": "node scripts/prueba-funcional.js"
   },
   "dependencies": {
     "bcrypt": "^6.0.0",

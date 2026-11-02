@@ -22,6 +22,26 @@ module.exports = (sequelize, DataTypes) => {
     time: {
         type: DataTypes.INTEGER,
         allowNull: true
+    },
+    // 'strength' (fuerza, series y repeticiones) o 'functional' (por tiempo).
+    // Las rutinas que ya existian quedan en 'strength'.
+    kind: {
+        type: DataTypes.STRING(16),
+        allowNull: false,
+        defaultValue: 'strength'
+    },
+    // Solo funcionales: vueltas, descanso entre vueltas (s) y modo por defecto.
+    rounds: {
+        type: DataTypes.INTEGER,
+        allowNull: true
+    },
+    roundRestSeconds: {
+        type: DataTypes.INTEGER,
+        allowNull: true
+    },
+    defaultMode: {
+        type: DataTypes.STRING(8),
+        allowNull: true
     }
     });
 

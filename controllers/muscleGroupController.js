@@ -1,4 +1,9 @@
 const { MuscleGroup } = require('../models');
+const { KIND_FUNCTIONAL, KIND_STRENGTH, normalizarKind } = require('../lib/funcional');
+
+// ?kind=strength|functional filtra; sin filtro devuelve todo.
+const filtroKind = (kind) =>
+  kind === KIND_FUNCTIONAL || kind === KIND_STRENGTH ? { where: { kind } } : {};
 
 function getErrorStatus(error) {
   const sequelizeErrorNames = [
@@ -19,8 +24,8 @@ function getErrorMessage(error) {
 module.exports = {
   async createMuscleGroup(req, res) {
     try {
-      const { name } = req.body || {};
-      const muscleGroup = await MuscleGroup.create({ name });
+      const { name, kind } = req.body || {};
+      const muscleGroup = await MuscleGroup.create({ name, kind: normalizarKind(kind) });
       return res.status(201).json({ message: 'Grupo muscular creado.', data: muscleGroup });
     } catch (error) {
       console.error('Error createMuscleGroup:', error);
@@ -30,7 +35,7 @@ module.exports = {
 
   async getMuscleGroups(req, res) {
     try {
-      const muscleGroups = await MuscleGroup.findAll();
+      const muscleGroups = await MuscleGroup.findAll(filtroKind(req.query?.kind));
       return res.status(200).json({ data: muscleGroups });
     } catch (error) {
       console.error('Error getMuscleGroups:', error);
@@ -63,8 +68,8 @@ module.exports = {
         return res.status(404).json({ message: 'Grupo muscular no encontrado.' });
       }
 
-      const { name } = req.body || {};
-      await muscleGroup.update({ name });
+      const { name, kind } = req.body || {};
+      await muscleGroup.update({ name, ...(kind !== undefined ? { kind: normalizarKind(kind) } : {}) });
       return res.status(200).json({ message: 'Grupo muscular actualizado.', data: muscleGroup });
     } catch (error) {
       console.error('Error updateMuscleGroup:', error);
