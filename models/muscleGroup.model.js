@@ -9,6 +9,13 @@ module.exports = (sequelize, DataTypes) => {
     name: {
       type: DataTypes.STRING,
       allowNull: false
+    },
+    // 'strength' (grupos musculares de siempre) o 'functional' (categorias del
+    // catalogo funcional: Core, Cardio, Pliometria...).
+    kind: {
+      type: DataTypes.STRING(16),
+      allowNull: false,
+      defaultValue: 'strength'
     }
   });
 

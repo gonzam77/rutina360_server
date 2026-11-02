@@ -26,6 +26,8 @@ module.exports = (sequelize, DataTypes) => {
         allowNull: false,
       },
       // { exercises: [{ idEjercice, name, category, series, restSeconds, note, executionSeconds }] }
+      // Funcionales: ademas kind 'functional', rounds, roundRestSeconds, defaultMode y
+      // workSeconds por ejercicio.
       payload: {
         type: DataTypes.JSON,
         allowNull: false,

@@ -1,6 +1,9 @@
 const crypto = require('crypto');
 const { Op } = require('sequelize');
 const { SharedRoutine, User } = require('../models');
+const { KIND_FUNCTIONAL, normalizarKind, camposRutinaFuncional, ejercicioFuncional } = require('../lib/funcional');
+
+const MENSAJE_APP_VIEJA = 'Actualizá la app para importar entrenamientos funcionales.';
 
 // Compartir rutinas entre usuarios con un codigo.
 //
@@ -65,6 +68,30 @@ function sanitizarEjercicios(lista) {
   return validos ? ejercicios : null;
 }
 
+// Bloques de un funcional: ademas del nombre, trabajo (5 s a 30 min) y
+// descanso (0 a 10 min). series queda en 1.
+function sanitizarBloques(lista) {
+  if (!Array.isArray(lista)) return null;
+
+  const bloques = [];
+  for (const item of lista.slice(0, MAX_EJERCICIOS)) {
+    const { campos, error } = ejercicioFuncional(item);
+    const idEjercice = entero(item?.idEjercice, 1, Number.MAX_SAFE_INTEGER);
+    const name = texto(item?.name, 120);
+    if (error || !name) return null;
+    bloques.push({
+      idEjercice: idEjercice || null,
+      name,
+      category: texto(item?.category, 60),
+      series: 1,
+      workSeconds: campos.workSeconds,
+      restSeconds: campos.restSeconds,
+      note: texto(item?.note, 500),
+    });
+  }
+  return bloques;
+}
+
 module.exports = {
   // POST /routine/share  { name, exercises: [...] }
   async createShare(req, res) {
@@ -73,9 +100,13 @@ module.exports = {
       if (!idOwner) return res.status(401).json({ message: 'Usuario no autenticado.' });
 
       const name = texto(req.body?.name, 120);
-      const exercises = sanitizarEjercicios(req.body?.exercises);
+      const kind = normalizarKind(req.body?.kind);
+      const funcional = kind === KIND_FUNCTIONAL;
+      const exercises = funcional ? sanitizarBloques(req.body?.exercises) : sanitizarEjercicios(req.body?.exercises);
+      const rutina = funcional ? camposRutinaFuncional(req.body) : { campos: {} };
 
       if (!name) return res.status(400).json({ message: 'La rutina necesita un nombre.' });
+      if (rutina.error) return res.status(400).json({ message: rutina.error });
       if (!exercises || exercises.length === 0) {
         return res.status(400).json({ message: 'La rutina tiene que tener al menos un ejercicio valido.' });
       }
@@ -96,7 +127,10 @@ module.exports = {
         const existe = await SharedRoutine.findOne({ where: { code }, attributes: ['id'] });
         if (existe) continue;
 
-        await SharedRoutine.create({ code, idOwner, name, payload: { exercises }, expiresAt });
+        // Los de fuerza guardan el payload de siempre; los funcionales suman su tipo
+        // y sus campos.
+        const payload = funcional ? { kind, ...rutina.campos, exercises } : { exercises };
+        await SharedRoutine.create({ code, idOwner, name, payload, expiresAt });
         return res.status(201).json({
           message: 'Rutina lista para compartir.',
           data: { code: formatearCodigo(code), expiresAt },
@@ -127,13 +161,25 @@ module.exports = {
         return res.status(404).json({ message: 'No encontramos una rutina con ese codigo, o ya vencio.' });
       }
 
+      const payload = compartida.payload || {};
+      const funcional = payload.kind === KIND_FUNCTIONAL;
+
+      // Una app vieja importaria el funcional como rutina de fuerza.
+      if (funcional && !req.soportaFuncional) {
+        return res.status(409).json({ message: MENSAJE_APP_VIEJA });
+      }
+
       await compartida.increment('timesUsed');
 
       return res.status(200).json({
         data: {
           code: formatearCodigo(compartida.code),
           name: compartida.name,
-          exercises: compartida.payload?.exercises || [],
+          kind: normalizarKind(payload.kind),
+          ...(funcional
+            ? { rounds: payload.rounds, roundRestSeconds: payload.roundRestSeconds, defaultMode: payload.defaultMode }
+            : {}),
+          exercises: payload.exercises || [],
           owner: compartida.owner ? { username: compartida.owner.username } : null,
           isOwn: Number(compartida.idOwner) === Number(req.authUser?.id),
           createdAt: compartida.createdAt,

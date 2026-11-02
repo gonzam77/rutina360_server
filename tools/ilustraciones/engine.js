@@ -96,7 +96,12 @@ function ladoPliegue(base, medio, fin) {
 function esqueleto(p) {
   const cadera = p.cadera;
   const hombro = sum(cadera, mul(dir(p.torso), L.torso));
-  const medioTorso = sum(cadera, mul(dir(p.torso), L.torso * 0.55));
+  // curvaTorso (opcional, en px): corre el medio del torso hacia la espalda
+  // (positivo) o hacia el pecho (negativo) para dibujar la columna redonda o
+  // hundida (gato-camello, cobra). Sin el campo, el torso es recto como siempre.
+  const medioTorso = p.curvaTorso
+    ? sum(sum(cadera, mul(dir(p.torso), L.torso * 0.55)), mul(mul(pista(p.frente), -1), p.curvaTorso))
+    : sum(cadera, mul(dir(p.torso), L.torso * 0.55));
   const cabeza = sum(hombro, mul(dir(p.cabeza ?? p.torso), L.cuello + L.cabeza));
   const frente = p.frente; // vector hacia donde mira el pecho
   const brazos = {};
@@ -348,7 +353,142 @@ const E = {
       svg: capsula(desde, [c[0], c[1] - 14], 2.5, C.cable) + circulo(c, 14, C.disco, `stroke="${C.discoBorde}" stroke-width="3"`),
     };
   },
+
+  // ---------- Equipamiento de los ejercicios funcionales (2026-11) ----------
+  // Ninguno lo usa el catalogo de fuerza: agregarlos no cambia sus imagenes.
+
+  // Kettlebell: asa en la mano (c) y la pesa colgando hacia `hacia` (grados).
+  kettlebell({ c, capa = 'frente', hacia = 270, r = 15 }) {
+    const d = dir(hacia);
+    const n = [-d[1], d[0]];
+    const centro = sum(c, mul(d, r + 9));
+    const a = sum(sum(c, mul(n, 9)), mul(d, 6));
+    const b = sum(sum(c, mul(n, -9)), mul(d, 6));
+    return {
+      capa,
+      svg:
+        `<path d="M${f(a[0])} ${f(a[1])} Q${f(c[0] - d[0] * 8)} ${f(c[1] - d[1] * 8)} ${f(b[0])} ${f(b[1])}" fill="none" stroke="${C.discoBorde}" stroke-width="5" stroke-linecap="round"/>` +
+        circulo(centro, r, C.disco, `stroke="${C.discoBorde}" stroke-width="3"`) +
+        circulo(sum(centro, mul(d, r * 0.15)), r * 0.35, C.discoBorde, 'fill-opacity="0.35"'),
+    };
+  },
+  // Soga de saltar: curva de una mano a la otra que pasa por `por`.
+  soga({ a, b, por, capa = 'fondo' }) {
+    // Punto de control para que la curva pase exactamente por `por`.
+    const ctrl = sub(mul(por, 2), mul(sum(a, b), 0.5));
+    return {
+      capa,
+      svg: `<path d="M${f(a[0])} ${f(a[1])} Q${f(ctrl[0])} ${f(ctrl[1])} ${f(b[0])} ${f(b[1])}" fill="none" stroke="${C.equipoClaro}" stroke-width="3" stroke-linecap="round"/>`,
+    };
+  },
+  // Balon medicinal.
+  balon({ c, r = 17, capa = 'frente' }) {
+    return {
+      capa,
+      svg:
+        circulo(c, r, C.disco, `stroke="${C.discoBorde}" stroke-width="3"`) +
+        `<path d="M${f(c[0] - r)} ${f(c[1])} Q${f(c[0])} ${f(c[1] - r * 0.55)} ${f(c[0] + r)} ${f(c[1])}" fill="none" stroke="${C.discoBorde}" stroke-width="2" stroke-opacity="0.6"/>` +
+        `<path d="M${f(c[0] - r)} ${f(c[1])} Q${f(c[0])} ${f(c[1] + r * 0.55)} ${f(c[0] + r)} ${f(c[1])}" fill="none" stroke="${C.discoBorde}" stroke-width="2" stroke-opacity="0.6"/>`,
+    };
+  },
+  // Sogas de battle ropes: de la mano al anclaje en el piso, ondulada.
+  sogasBattle({ desde, ancla, ondas = 3, alto = 16, fase = 1, capa = 'medio', ancho = 5 }) {
+    const d = sub(ancla, desde);
+    const largo = len(d);
+    const u = unit(d);
+    const n = [-u[1], u[0]];
+    const pasos = ondas * 2;
+    let path = `M${f(desde[0])} ${f(desde[1])}`;
+    for (let i = 0; i < pasos; i++) {
+      const t0 = i / pasos;
+      const t1 = (i + 1) / pasos;
+      const signo = (i % 2 === 0 ? 1 : -1) * fase;
+      // La onda se achica hacia el anclaje.
+      const amp = alto * (1 - t0 * 0.6);
+      const ctrl = sum(sum(desde, mul(u, largo * (t0 + t1) / 2)), mul(n, amp * signo));
+      const fin = sum(desde, mul(u, largo * t1));
+      path += ` Q${f(ctrl[0])} ${f(ctrl[1])} ${f(fin[0])} ${f(fin[1])}`;
+    }
+    return {
+      capa,
+      svg:
+        `<path d="${path}" fill="none" stroke="${C.equipoClaro}" stroke-width="${ancho}" stroke-linecap="round"/>` +
+        `<rect x="${f(ancla[0] - 6)}" y="${f(ancla[1] - 10)}" width="16" height="${f(SUELO - ancla[1] + 10)}" rx="3" fill="${C.equipoOscuro}"/>`,
+    };
+  },
+  // Pared vertical (de y hasta el suelo). `blanco` marca una altura objetivo.
+  pared({ x, y = 40, ancho = 16, blanco, capa = 'fondo' }) {
+    let svg = `<rect x="${f(x)}" y="${y}" width="${ancho}" height="${SUELO - y}" fill="${C.equipoOscuro}"/>`;
+    if (blanco !== undefined) {
+      svg += `<rect x="${f(x - 4)}" y="${f(blanco - 14)}" width="6" height="28" rx="2" fill="${C.equipoClaro}"/>`;
+    }
+    return { capa, svg };
+  },
+  // Remo ergometro de costado: riel, asiento, volante adelante y apoyapies.
+  remoErgometro({ asiento, x1 = 40, x2 = 360, volante = [338, 266], capa = 'fondo' }) {
+    const yRiel = asiento[1] + 14;
+    let svg = '';
+    svg += `<rect x="${x1}" y="${yRiel}" width="${x2 - x1 - 30}" height="7" rx="3" fill="${C.equipo}"/>`;
+    svg += `<rect x="${x1 + 8}" y="${yRiel + 7}" width="8" height="${f(SUELO - yRiel - 7)}" fill="${C.equipoOscuro}"/>`;
+    svg += `<rect x="${x2 - 70}" y="${yRiel + 7}" width="8" height="${f(SUELO - yRiel - 7)}" fill="${C.equipoOscuro}"/>`;
+    svg += `<line x1="${x2 - 66}" y1="${yRiel}" x2="${volante[0]}" y2="${volante[1]}" stroke="${C.equipoOscuro}" stroke-width="9" stroke-linecap="round"/>`;
+    svg += circulo(volante, 26, C.equipo, `stroke="${C.equipoClaro}" stroke-width="3"`) + circulo(volante, 6, C.equipoClaro);
+    svg += `<rect x="${f(asiento[0] - 18)}" y="${f(asiento[1])}" width="36" height="12" rx="5" fill="${C.equipoClaro}"/>`;
+    return { capa, svg };
+  },
+  // Air bike de costado: rueda-ventilador adelante, cuadro, sillin y palancas.
+  airBike({ sillin, rueda = [312, 296], r = 42, capa = 'fondo' }) {
+    let svg = '';
+    const pedal = [rueda[0] - 92, SUELO - 40];
+    svg += `<rect x="${f(rueda[0] - 150)}" y="${SUELO - 7}" width="190" height="7" rx="3" fill="${C.equipoOscuro}"/>`;
+    svg += circulo(rueda, r, C.equipoOscuro, `fill-opacity="0.85" stroke="${C.equipoClaro}" stroke-width="3"`);
+    for (let i = 0; i < 6; i++) {
+      const p = sum(rueda, mul(dir(i * 30), r - 4));
+      const q = sum(rueda, mul(dir(i * 30 + 180), r - 4));
+      svg += `<line x1="${f(p[0])}" y1="${f(p[1])}" x2="${f(q[0])}" y2="${f(q[1])}" stroke="${C.equipoClaro}" stroke-opacity="0.35" stroke-width="2"/>`;
+    }
+    svg += `<line x1="${f(sillin[0])}" y1="${f(sillin[1] + 6)}" x2="${f(pedal[0])}" y2="${f(pedal[1])}" stroke="${C.equipo}" stroke-width="10" stroke-linecap="round"/>`;
+    svg += `<line x1="${f(pedal[0])}" y1="${f(pedal[1])}" x2="${f(rueda[0])}" y2="${f(rueda[1])}" stroke="${C.equipo}" stroke-width="10" stroke-linecap="round"/>`;
+    svg += `<line x1="${f(pedal[0] - 6)}" y1="${SUELO - 4}" x2="${f(pedal[0])}" y2="${f(pedal[1])}" stroke="${C.equipoOscuro}" stroke-width="8"/>`;
+    svg += circulo(pedal, 9, C.equipoClaro);
+    svg += `<rect x="${f(sillin[0] - 20)}" y="${f(sillin[1] - 3)}" width="40" height="10" rx="5" fill="${C.equipoClaro}"/>`;
+    return { capa, svg };
+  },
+  // Palanca de la air bike: de un pivote cerca de la rueda hasta la mano.
+  palancaBike({ pivote, mano, capa = 'medio' }) {
+    return { capa, svg: capsula(pivote, mano, 7, C.equipoClaro) + circulo(pivote, 6, C.equipoOscuro) };
+  },
 };
+
+// Flecha en arco de circunferencia o de elipse (rotaciones y circulos).
+// a0 y a1 en grados (sentido antihorario de pantalla); rx/ry radios.
+function flechaArco({ centro, rx, ry = rx, a0, a1 }) {
+  const pasos = 24;
+  const pts = [];
+  for (let i = 0; i <= pasos; i++) {
+    const a = rad(a0 + ((a1 - a0) * i) / pasos);
+    pts.push([centro[0] + rx * Math.cos(a), centro[1] - ry * Math.sin(a)]);
+  }
+  const d = pts.map((p, i) => `${i ? 'L' : 'M'}${f(p[0])} ${f(p[1])}`).join(' ');
+  const hasta = pts[pts.length - 1];
+  const t = unit(sub(hasta, pts[pts.length - 2]));
+  const p1 = sum(hasta, sum(mul(t, -10), mul([-t[1], t[0]], 6)));
+  const p2 = sum(hasta, sum(mul(t, -10), mul([t[1], -t[0]], 6)));
+  return (
+    `<path d="${d}" fill="none" stroke="${C.musculo}" stroke-opacity="0.75" stroke-width="3" stroke-dasharray="7 6" stroke-linecap="round"/>` +
+    `<path d="M${f(p1[0])} ${f(p1[1])} L${f(hasta[0])} ${f(hasta[1])} L${f(p2[0])} ${f(p2[1])}" fill="none" stroke="${C.musculo}" stroke-opacity="0.85" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>`
+  );
+}
+
+// Reloj chico que reemplaza los numeros de panel en las posturas sostenidas.
+function reloj(x, y) {
+  return (
+    `<circle cx="${x}" cy="${y}" r="14" fill="none" stroke="${C.rotulo}" stroke-width="2"/>` +
+    `<line x1="${x}" y1="${y}" x2="${x}" y2="${y - 8}" stroke="${C.rotulo}" stroke-width="2.5" stroke-linecap="round"/>` +
+    `<line x1="${x}" y1="${y}" x2="${x + 6}" y2="${y + 3}" stroke="${C.rotulo}" stroke-width="2.5" stroke-linecap="round"/>` +
+    `<rect x="${x - 4}" y="${y - 21}" width="8" height="4" rx="1.5" fill="${C.rotulo}"/>`
+  );
+}
 
 function flecha(desde, hasta, curva = 0) {
   const m = mul(sum(desde, hasta), 0.5);
@@ -570,27 +710,62 @@ function panel(contenido, x, numero) {
   );
 }
 
-function render(ej) {
-  const grupos = ej.musculos;
-  const ini = figura(ej.inicio, grupos);
-  let fin = figura(ej.fin, grupos);
+// Flechas de un ejercicio. `arco` dibuja una flecha en arco (rotaciones y
+// circulos); el resto, como siempre, va del punto en una pose al de la otra.
+function flechasDe(ej, poseA, poseB) {
+  let svg = '';
   const flechas = Array.isArray(ej.flecha) ? ej.flecha : ej.flecha ? [ej.flecha] : [];
   for (const fl of flechas) {
-    const a = fl.desde || puntoClave(ej.inicio, fl.punto);
-    const b = fl.hasta || puntoClave(ej.fin, fl.punto);
+    if (fl.arco) {
+      svg += flechaArco(fl.arco);
+      continue;
+    }
+    const a = fl.desde || puntoClave(poseA, fl.punto);
+    const b = fl.hasta || puntoClave(poseB, fl.punto);
     if (a && b) {
       const off = fl.offset || [0, 0];
-      fin += flecha(sum(a, off), sum(b, off), fl.curva || 0);
+      svg += flecha(sum(a, off), sum(b, off), fl.curva || 0);
     }
   }
+  return svg;
+}
+
+// espejo: true refleja la figura dentro de su panel (lado izquierdo/derecho).
+const espejarPanel = (ej, contenido) =>
+  ej.espejo ? `<g transform="translate(${PANEL},0) scale(-1,1)">${contenido}</g>` : contenido;
+
+function render(ej) {
+  if (ej.sostenido) return renderSostenido(ej);
+  const grupos = ej.musculos;
+  const ini = figura(ej.inicio, grupos);
+  const fin = figura(ej.fin, grupos) + flechasDe(ej, ej.inicio, ej.fin);
   const ancho = PANEL * 2;
   return (
     `<svg xmlns="http://www.w3.org/2000/svg" width="${ancho}" height="${PANEL}" viewBox="0 0 ${ancho} ${PANEL}">` +
     `<defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${C.fondoA}"/><stop offset="1" stop-color="${C.fondoB}"/></linearGradient></defs>` +
     `<rect width="${ancho}" height="${PANEL}" fill="url(#g)"/>` +
     `<line x1="${PANEL}" y1="40" x2="${PANEL}" y2="${PANEL - 40}" stroke="rgba(204,214,235,0.08)" stroke-width="2"/>` +
-    panel(ini, 0, 1) +
-    panel(fin, PANEL, 2) +
+    panel(espejarPanel(ej, ini), 0, 1) +
+    panel(espejarPanel(ej, fin), PANEL, 2) +
+    `</svg>`
+  );
+}
+
+// Postura sostenida (planchas, isometricos, elongaciones): una sola figura
+// centrada, con un reloj en lugar de los numeros 1 y 2.
+function renderSostenido(ej) {
+  const ancho = PANEL * 2;
+  const pose = ej.pose || ej.inicio;
+  const contenido = figura(pose, ej.musculos) + flechasDe(ej, pose, pose);
+  return (
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${ancho}" height="${PANEL}" viewBox="0 0 ${ancho} ${PANEL}">` +
+    `<defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${C.fondoA}"/><stop offset="1" stop-color="${C.fondoB}"/></linearGradient></defs>` +
+    `<rect width="${ancho}" height="${PANEL}" fill="url(#g)"/>` +
+    `<g transform="translate(${PANEL / 2},0)">` +
+    `<line x1="24" y1="${SUELO + 1}" x2="${PANEL - 24}" y2="${SUELO + 1}" stroke="${C.suelo}" stroke-width="2"/>` +
+    espejarPanel(ej, contenido) +
+    `</g>` +
+    reloj(30, 32) +
     `</svg>`
   );
 }
@@ -609,4 +784,4 @@ function renderGrupo(pose, grupos) {
   );
 }
 
-module.exports = { render, renderGrupo, E, C, L, SUELO, PANEL, dir, sum, sub, mul, unit, len };
+module.exports = { render, renderGrupo, renderSostenido, E, C, L, SUELO, PANEL, dir, sum, sub, mul, unit, len };

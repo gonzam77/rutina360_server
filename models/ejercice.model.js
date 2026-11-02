@@ -18,6 +18,11 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.INTEGER,
       allowNull: false
     },
+    // Funcionales: tiempo de trabajo sugerido al elegirlo (segundos).
+    defaultWorkSeconds: {
+      type: DataTypes.INTEGER,
+      allowNull: true
+    },
     // Ruta relativa a la API de la ilustracion del ejercicio. Si el ejercicio
     // no tiene imagen propia, el endpoint devuelve la de su grupo muscular.
     imageUrl: {

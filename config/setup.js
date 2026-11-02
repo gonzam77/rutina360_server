@@ -4,6 +4,8 @@ const initialRoles = require('../src/seeders/roles');
 const initialGroups = require('../src/seeders/muscularGroup');
 const initialEjercices = require('../src/seeders/ejercices');
 const initialUsers = require('../src/seeders/gymUser')
+const gruposFuncionales = require('../src/seeders/gruposFuncionales');
+const ejerciciosFuncionales = require('../src/seeders/ejerciciosFuncionales');
 const seedImages = require('./seedImages');
 
 function isBcryptHash(value) {
@@ -33,6 +35,38 @@ async function alignIdSequence(model) {
       (SELECT COUNT(*) > 0 FROM ${fullTableName})
     );
   `);
+}
+
+// Catalogo funcional (2026-11). Se carga con ids reservados (101-108 y 1001+)
+// e ignoreDuplicates, igual que el de fuerza. Si alguno de esos ids ya estaba
+// ocupado por algo creado a mano, no se pisa: se avisa en el log para
+// resolverlo a mano.
+async function ensureCatalogoFuncional() {
+  await db.MuscleGroup.bulkCreate(gruposFuncionales, { ignoreDuplicates: true });
+  await db.Ejercice.bulkCreate(ejerciciosFuncionales, { ignoreDuplicates: true });
+
+  const grupos = await db.MuscleGroup.findAll({ where: { id: gruposFuncionales.map((g) => g.id) } });
+  for (const esperado of gruposFuncionales) {
+    const grupo = grupos.find((g) => Number(g.id) === esperado.id);
+    if (!grupo || grupo.name !== esperado.name) {
+      console.warn(`>> Catalogo funcional: el grupo ${esperado.id} no es "${esperado.name}". Revisarlo a mano.`);
+    } else if (grupo.kind !== 'functional') {
+      await grupo.update({ kind: 'functional' });
+    }
+  }
+
+  const ejercicios = await db.Ejercice.findAll({
+    where: { id: ejerciciosFuncionales.map((e) => e.id) },
+    attributes: ['id', 'name', 'idMuscleGroup', 'defaultWorkSeconds'],
+  });
+  for (const esperado of ejerciciosFuncionales) {
+    const ejercicio = ejercicios.find((e) => Number(e.id) === esperado.id);
+    if (!ejercicio || ejercicio.name !== esperado.name || Number(ejercicio.idMuscleGroup) !== esperado.idMuscleGroup) {
+      console.warn(`>> Catalogo funcional: el ejercicio ${esperado.id} no es "${esperado.name}". Revisarlo a mano.`);
+    } else if (ejercicio.defaultWorkSeconds === null || ejercicio.defaultWorkSeconds === undefined) {
+      await ejercicio.update({ defaultWorkSeconds: esperado.defaultWorkSeconds });
+    }
+  }
 }
 
 async function ensureSuperAdmin() {
@@ -97,6 +131,7 @@ const setupDatabase = async () => {
     await db.MuscleGroup.bulkCreate(initialGroups, { ignoreDuplicates: true });
     await db.Ejercice.bulkCreate(initialEjercices, { ignoreDuplicates: true });
     await db.User.bulkCreate(usersWithHashedPassword,{ignoreDuplicates: true})
+    await ensureCatalogoFuncional();
     await alignIdSequence(db.Rol);
     await alignIdSequence(db.MuscleGroup);
     await alignIdSequence(db.Ejercice);

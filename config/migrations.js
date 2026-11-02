@@ -40,6 +40,18 @@ const runMigrations = async () => {
   if (agregada || filas > 0) {
     console.log(`>> Migracion: restSeconds completado en ${filas} filas.`);
   }
+
+  // 2026-11: entrenamientos funcionales (por tiempo). Todo es aditivo: las
+  // filas que ya existen quedan como fuerza ('strength').
+  const { INTEGER, STRING } = db.Sequelize;
+  await agregarColumnaSiFalta(db.Routine, 'kind', { type: STRING(16), allowNull: false, defaultValue: 'strength' });
+  await agregarColumnaSiFalta(db.Routine, 'rounds', { type: INTEGER, allowNull: true });
+  await agregarColumnaSiFalta(db.Routine, 'roundRestSeconds', { type: INTEGER, allowNull: true });
+  await agregarColumnaSiFalta(db.Routine, 'defaultMode', { type: STRING(8), allowNull: true });
+  await agregarColumnaSiFalta(db.RoutineEjercice, 'workSeconds', { type: INTEGER, allowNull: true });
+  await agregarColumnaSiFalta(db.RoutineEjercice, 'position', { type: INTEGER, allowNull: true });
+  await agregarColumnaSiFalta(db.MuscleGroup, 'kind', { type: STRING(16), allowNull: false, defaultValue: 'strength' });
+  await agregarColumnaSiFalta(db.Ejercice, 'defaultWorkSeconds', { type: INTEGER, allowNull: true });
 };
 
 module.exports = runMigrations;

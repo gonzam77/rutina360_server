@@ -60,6 +60,17 @@ module.exports = (sequelize, DataTypes) => {
         comments: {
             type: DataTypes.STRING,
             allowNull: false
+        },
+        // Solo funcionales: segundos de trabajo del bloque.
+        workSeconds: {
+            type: DataTypes.INTEGER,
+            allowNull: true
+        },
+        // Orden dentro de la rutina. Las filas viejas no lo tienen y se ordenan
+        // por id, que es el orden en que se cargaron.
+        position: {
+            type: DataTypes.INTEGER,
+            allowNull: true
         }
         
     });
